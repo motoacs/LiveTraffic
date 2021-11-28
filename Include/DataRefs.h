@@ -67,30 +67,30 @@ public:
              std::string&& _typeDesignator,
              std::string&& _classification,
              std::string&& _wtc);
-    
+
     // copying and moving is all as per default
 public:
     Doc8643 (const Doc8643& o) = default;
     Doc8643 (Doc8643&& o) = default;
     Doc8643& operator = (const Doc8643& o) = default;
     Doc8643& operator = (Doc8643&& o) = default;
-    
+
     // 'model' is key, so let's base all comparison on it
 public:
     bool operator == (const Doc8643& o) const { return model == o.model; }
     bool operator < (const Doc8643& o)  const { return model < o.model; }
     bool operator > (const Doc8643& o)  const { return model > o.model; }
     operator bool () const { return !model.empty(); }
-    
+
     // return the string for FlightModel matching
     operator std::string() const;
-    
+
     // Helicopter or Gyrocopter with big rotor?
     inline bool hasRotor () const
     { return classification.size() >= 1 ?
         (classification[0] == 'H' || classification[0] == 'G') : false;
     }
-    
+
     // static functions for reading the doc8643.txt file
     // and returning information from it
 public:
@@ -125,10 +125,10 @@ namespace ModelIcaoType
 struct WndPos {
     int x = 0;
     int y = 0;
-    
+
     /// Shift both values
     void shift (int _dx, int _dy) { x += _dx; y += _dy; }
-    
+
     /// Return a shifted copy
     WndPos shiftedBy (int _dx, int _dy) const
     { WndPos ret = *this; ret.shift(_dx,_dy); return ret; }
@@ -138,7 +138,7 @@ struct WndPos {
 struct WndRect {
     WndPos tl;          ///< top left
     WndPos br;          ///< bottom right
-    
+
     /// Default Constructor -> all zero
     WndRect () {}
     /// Constructor takes four ints as a convenience
@@ -147,7 +147,7 @@ struct WndRect {
     /// Constructor taking two positions
     WndRect (const WndPos& _tl, const WndPos& _br) :
     tl(_tl), br(_br) {}
-    
+
     // Accessor to individual coordinates
     int     left () const   { return tl.x; }    ///< reading left
     int&    left ()         { return tl.x; }    ///< writing left
@@ -157,25 +157,25 @@ struct WndRect {
     int&    right ()        { return br.x; }    ///< writing right
     int     bottom () const { return br.y; }    ///< reading bottom
     int&    bottom ()       { return br.y; }    ///< writing bottom
-    
+
     int     width () const  { return right() - left(); }    ///< width
     int     height () const { return top() - bottom(); }    ///< height
-    
+
     /// Does window contain the position?
     bool    contains (const WndPos& _p) const
     { return
         left()   <= _p.x && _p.x <= right() &&
         bottom() <= _p.y && _p.y <= top(); }
-    
+
     /// Clear all to zero
     void    clear () { tl.x = tl.y = br.x = br.y = 0; }
     /// Is all zeroes?
     bool    empty () const { return !tl.x && !tl.y && !br.x && !br.y; }
-    
+
     /// Shift position right/down
     WndRect& shift (int _dx, int _dy)
     { tl.shift(_dx,_dy); br.shift(_dx,_dy); return *this; }
-    
+
     /// Set from config file string ("left,top,right.bottom")
     void    set (const std::string& _s);
 };
@@ -264,7 +264,7 @@ enum cmdRefsXP {
     CR_GENERAL_ZOOM_OUT,
     CR_GENERAL_ZOOM_IN_FAST,
     CR_GENERAL_ZOOM_OUT_FAST,           // last command registered for camera movement
-    
+
     CR_VIEW_FREE_CAM,               ///< sim/view/free_camera                               Free camera.
     CR_VIEW_FWD_2D,                 ///< sim/view/forward_with_2d_panel                     Forward with 2-D panel.
     CR_VIEW_FWD_HUD ,               ///< sim/view/forward_with_hud                          Forward with HUD.
@@ -278,7 +278,7 @@ enum cmdRefsXP {
     CR_VIEW_EXT_WEAPON ,            ///< sim/view/track_weapon                              Track weapon.
     CR_VIEW_EXT_CHASE ,             ///< sim/view/chase                                     Chase.
     CR_VIEW_FWD_3D ,                ///< sim/view/3d_cockpit_cmnd_look                      3-D cockpit.
-    
+
     CNT_CMDREFS_XP                      // always last, number of elements
 };
 
@@ -323,22 +323,22 @@ enum dataRefsLT {
     DR_AC_LIGHTS_LANDING,
     DR_AC_BEARING,
     DR_AC_DIST,                         // last of a/c info
-    
+
     DR_AC_BULK_QUICK,               // bulk a/c primarily for communication with LTAPI
     DR_AC_BULK_EXPENSIVE,           // similar, but for expensive data, should be called less often
-    
+
     DR_SIM_DATE,
     DR_SIM_TIME,
-    
+
     DR_LT_VER,                      ///< LiveTraffic's version number, like 201 for v2.01
     DR_LT_VER_DATE,                 ///< LiveTraffic's version date, like 20200430 for 30-APR-2020
-    
+
     // UI information
     DR_UI_OPACITY,
     DR_UI_FONT_SCALE,
     DR_UI_SETTINGS_TRANSP,
     DR_UI_ACI_COLLAPSED,
-    
+
     // configuration options
     DR_CFG_AIRCRAFT_DISPLAYED,
     DR_CFG_AUTO_START,
@@ -372,7 +372,7 @@ enum dataRefsLT {
     DR_CFG_REMOTE_SUPPORT,
     DR_CFG_EXTERNAL_CAMERA,
     DR_CFG_LAST_CHECK_NEW_VER,
-    
+
     // debug options
     DR_DBG_AC_FILTER,
     DR_DBG_AC_POS,
@@ -439,7 +439,7 @@ public:
         void* refCon                = NULL;
         bool bCfgFile               = false;
         bool bDebugLog              = false;    ///< log this setting in case of DEBUG logging?
-        
+
     public:
         // constructor for xplmType_Int
         dataRefDefinitionT (const char* name,
@@ -468,15 +468,15 @@ public:
                             bool _bCfg = false,
                             bool _bDebugLog = false) :
         dataName(name), dataType(xplmType_Data),
-        bfRead(_bfRead), 
+        bfRead(_bfRead),
         refCon(_refCon), bCfgFile(_bCfg), bDebugLog(_bDebugLog) {}
-        
+
         // allows using the object in string context -> dataName
         inline const std::string getDataNameStr() const { return dataName; }
         inline const char* getDataName() const { return dataName.c_str(); }
         inline operator const char* () const { return getDataName(); }
         inline bool operator == (const dataRefDefinitionT& o) { return dataName == o.dataName; }
-        
+
         inline bool isWriteable () const { return (dataType == xplmType_Int)   ? (ifWrite != NULL) :
                                                   (dataType == xplmType_Float) ? (ffWrite != NULL) : false; }
         inline XPLMDataTypeID getDataTpe () const { return dataType; }
@@ -491,20 +491,20 @@ public:
         inline void setRefCon (void* _refCon) { refCon = _refCon; }
         inline bool isCfgFile() const { return bCfgFile; }
         bool isDebugLogging() const { return bDebugLog; }
-        
+
         // get the actual current value (by calling the getData?_f function)
         int getDatai () const;
         float getDataf () const;
-        
+
         // set the value
         void setData (int i);
         void setData (float f);
         void setData (const std::string& s);
-        
+
         // returns the string to be stored in a config file
         std::string GetConfigString() const;
     };
-    
+
     // which elements make up an a/c label?
     struct LabelCfgTy {
         unsigned
@@ -524,14 +524,14 @@ public:
         bHeightAGL : 1,
         bSpeed : 1,                 // default
         bVSI : 1;
-        
+
         // this is a bit ugly but avoids a wrapper union with an int
         inline unsigned GetUInt() const { return *reinterpret_cast<const unsigned*>(this); }
         inline void SetUInt(unsigned i) { *reinterpret_cast<unsigned*>(this) = i; }
         inline bool operator != (const LabelCfgTy& o) const
         { return GetUInt() != o.GetUInt(); }
     };
-    
+
     // when to show a/c labels?
     struct LabelShowCfgTy {
         unsigned
@@ -546,7 +546,7 @@ public:
         inline bool operator != (const LabelShowCfgTy& o) const
         { return GetUInt() != o.GetUInt(); }
     };
-    
+
     /// represents a line in the [CSLPath] section of LiveTrafic.prg
     struct CSLPathCfgTy {
     public:
@@ -554,7 +554,7 @@ public:
     protected:
         int         bPathExists = 0;    ///< 3-values: -1 no, 0 not tested, 1 yes
         std::string path;               ///< actual path, can be relative to X-Plane system path
-        
+
     public:
         CSLPathCfgTy () {}
         CSLPathCfgTy (bool b, const std::string& p);
@@ -568,14 +568,14 @@ public:
         bool operator== (const std::string& s) const { return path == s; }
     };
     typedef std::vector<CSLPathCfgTy> vecCSLPaths;
-    
+
 public:
     pluginStateTy pluginState = STATE_STOPPED;
 #ifdef DEBUG
     bool bSimVREntered = false;                 // for me to simulate some aspects of VR
     double fdBufDebug  = 0.0;                   // Due to debugging, the buffering period might extend a lot...
 #endif
-    
+
 //MARK: DataRefs
 protected:
     XPLMDataRef adrXP[CNT_DATAREFS_XP];                 ///< array of XP data refs to read from and shared dataRefs to provide
@@ -600,7 +600,8 @@ protected:
     int bDebugAcPos             = false;// output debug info on position calc into log file?
     int bDebugLogRawFd          = false;// log raw flight data to LTRawFD.log
     int bDebugExportFd          = false;// export flight data to LTExportFD.csv
-    int bDebugExportUserAc      = false;///< export user's aircraft data to LTExportFD.csv
+    int bDebugExportUserAc      = true;///< export user's aircraft data to LTExportFD.csv
+    // int bDebugExportUserAc      = false;///< export user's aircraft data to LTExportFD.csv
     float lastExportUserAc      = 0.0f; ///< last time user's aircraft data has been written to export file
     int bDebugExportNormTS      = true; ///< normalize the timestamp when writing LTExportFD.csv, starting at 0 by the time exporting starts
     int bDebugModelMatching     = false;// output debug info on model matching in xplanemp?
@@ -614,10 +615,10 @@ protected:
     int iTodaysDayOfYear        = 0;
     time_t tStartThisYear = 0, tStartPrevYear = 0;
     int lastCheckNewVer         = 0;    // when did we last check for updates? (hours since the epoch)
-    
+
     float lstLatRef = NAN;              ///< last lat_ref, ie. known local coordinate system's reference point
     float lstLonRef = NAN;              ///< last lon_ref, ie. known local coordinate system's reference point
-    
+
     // generic config values
     int bAutoStart          = true;     ///< shall display a/c right after startup?
     int bAIonRequest        = false;    ///< acquire multiplayer control for TCAS on request only, not automatically?
@@ -658,18 +659,18 @@ protected:
     int ffSendTrfcIntvl = 3;            // [s] interval to broadcast traffic info
 
     vecCSLPaths vCSLPaths;              // list of paths to search for CSL packages
-    
+
     std::string sDefaultAcIcaoType  = CSL_DEFAULT_ICAO_TYPE;
     std::string sDefaultCarIcaoType = CSL_CAR_ICAO_TYPE;
     std::string sADSBExAPIKey;
-    
+
     // live values
     bool bReInitAll     = false;        // shall all a/c be re-initiaized (e.g. time jumped)?
-    
+
     int cntAc           = 0;            // number of a/c being displayed
     std::string keyAc;                  // key (transpIcao) for a/c whose data is returned
     const LTAircraft* pAc = nullptr;    // ptr to that a/c
-    
+
     // Weather
     double      altPressCorr_ft = 0.0;  ///< [ft] barometric correction for pressure altitude, in meter
     float       lastWeatherAttempt = 0.0f;  ///< last time we _tried_ to update the weather
@@ -678,22 +679,22 @@ protected:
     positionTy  lastWeatherPos;         ///< last position for which weather was retrieved
     std::string lastWeatherStationId;   ///< last weather station we got weather from
     std::string lastWeatherMETAR;       ///< last full METAR string
-    
+
 //MARK: Debug helpers (public)
 public:
     std::string cslFixAcIcaoType;       // set of fixed values to use for...
     std::string cslFixOpIcao;           // ...newly created aircraft for...
     std::string cslFixLivery;           // ...CSL model package testing
-    
+
 // MARK: Public members
 public:
     /// once per Flarm a/c type: matching it to one or more ICAO types
     std::array<std::vector<std::string>, 14> aFlarmToIcaoAcTy;
-    
+
     RealTrafficConnection *pRTConn = nullptr;   // ptr to RealTraffic connection object
     long ADSBExRLimit = 0;              // ADSBEx: Limit on RapidAPI
     long ADSBExRRemain = 0;             // ADSBEx: Remaining Requests on RapidAPI
-    
+
     // UI information
     int UIopacity = DEF_UI_OPACITY;     ///< [%] UI opacity
     int UIFontScale = DEF_UI_FONT_SCALE; ///< [%] Font scale
@@ -701,7 +702,7 @@ public:
     // Settings UI
     WndRect SUIrect;                    ///< Settings UI Window position
     int SUItransp = 0;                  ///< Settings UI: transaprent background?
-    
+
     // A/C Info Window(s)
     WndRect ACIrect;                    ///< A/C Info Window position
     int ACIcollapsed = 0;               ///< A/C Info Wnd collapsed sections status
@@ -715,7 +716,7 @@ public:
     bool Init();                                        // Init DataRefs, return "OK?"
     void InformDataRefEditors();                        ///< tell DRE and DRT our dataRefs
     void Stop();                                        // unregister what's needed
-    
+
 protected:
     // call XPLMRegisterDataAccessor
     bool RegisterDataAccessors();
@@ -752,7 +753,7 @@ public:
     static int   LTGetInt(void* p);
     static float LTGetFloat(void* p);
     static void  LTSetBool(void* p, int i);
-    
+
     // Bulk data access to transfer a lot of a/c info to LTAPI
     static int LTGetBulkAc (void* inRefcon, void * outValue,
                             int inStartIdx, int inNumAc);
@@ -769,15 +770,15 @@ public:
     static void LTSetAcKey(void*p, int i);
     static int LTGetAcInfoI(void* p);
     static float LTGetAcInfoF(void* p);
-    
+
     void SetCameraAc(const LTAircraft* pCamAc); ///< sets the data of the shared datarefs to point to `ac` as the current aircraft under the camera
     static void ClearCameraAc(void*);           ///< shared dataRef callback: Whenever someone else writes to the shared dataRef we clear our a/c camera information
-    
+
     // seconds since epoch including fractionals
     double GetSimTime() const { return lastSimTime; }
     /// Current sim time as a human readable string, including 10th of seconds
     std::string GetSimTimeString() const;
-    
+
     // livetraffic/sim/date and .../time
     static void LTSetSimDateTime(void* p, int i);
     static int LTGetSimDateTime(void* p);
@@ -787,30 +788,30 @@ public:
     inline int AreAircraftDisplayed() const  { return bShowingAircraft; }
     void SetAircraftDisplayed ( int bEnable );
     int ToggleAircraftDisplayed ();        // returns new status (displayed?)
-    
+
     inline XPLMPluginID GetMyPluginId() const { return pluginID; }
-    
+
     // livetraffic/cfg/log_level: Log Level
     static void LTSetLogLevel(void* p, int i);
     void SetLogLevel ( int i );
     void SetMsgAreaLevel ( int i );
     inline logLevelTy GetLogLevel()             { return iLogLevel; }
     inline logLevelTy GetMsgAreaLevel()         { return iMsgAreaLevel; }
-    
+
     // livetraffic/cfg/use_historic_data: Simulate history
     static void LTSetUseHistData(void*, int i);
     bool SetUseHistData (bool bUseHistData, bool bForceReload);
     inline bool GetUseHistData() const           { return bUseHistoricData; }
-    
+
     // general config values
     static void LTSetCfgValue(void* p, int val);
     bool SetCfgValue(void* p, int val);
-    
+
     // generic config access (not as fast as specific access, but good for rare access)
     static bool  GetCfgBool  (dataRefsLT dr);
     static int   GetCfgInt   (dataRefsLT dr);
     static float GetCfgFloat (dataRefsLT dr);
-                     
+
     // specific access
     inline bool GetAutoStart() const { return bAutoStart != 0; }
     inline bool IsAIonRequest() const { return bAIonRequest != 0; }
@@ -856,15 +857,15 @@ public:
     const std::string& GetDefaultCarIcaoType() const { return sDefaultCarIcaoType; }
     bool SetDefaultAcIcaoType(const std::string type);
     bool SetDefaultCarIcaoType(const std::string type);
-    
+
     // livetraffic/channel/...
     void SetChannelEnabled (dataRefsLT ch, bool bEnable);
     inline bool IsChannelEnabled (dataRefsLT ch) const { return bChannel[ch - DR_CHANNEL_FIRST]; }
     int CntChannelEnabled () const;
-    
+
     std::string GetADSBExAPIKey () const { return sADSBExAPIKey; }
     void SetADSBExAPIKey (std::string apiKey) { sADSBExAPIKey = apiKey; }
-    
+
     // timestamp offset network vs. system clock
     inline void ChTsOffsetReset() { chTsOffset = 0.0f; chTsOffsetCnt = 0; }
     inline double GetChTsOffset () const { return chTsOffset; }
@@ -882,23 +883,23 @@ public:
     // livetraffic/dbg/ac_pos: Debug Positions for given a/c?
     inline bool GetDebugAcPos(const std::string& key) const
         { return bDebugAcPos && key == GetSelectedAcKey(); }
-    
+
     inline bool GetDebugLogRawFD() const        { return bDebugLogRawFd; }
     void SetDebugLogRawFD (bool bLog)           { bDebugLogRawFd = bLog; }
-    
+
     bool GetDebugExportFD() const               { return bDebugExportFd; }
     void SetDebugExportFD (bool bExport)        { bDebugExportFd = bExport; }
     bool GetDebugExportUserAc() const           { return bDebugExportUserAc; }
     void SetDebugExportUserAc (bool bExport)    { bDebugExportUserAc = bExport; }
     void ExportUserAcData ();                   ///< Write out an export record for the user aircraft
     bool ShallExportNormalizeTS () const        { return bDebugExportNormTS; }
-    
+
     bool AnyExportData() const                  { return GetDebugExportFD() || GetDebugExportUserAc(); }
     void SetAllExportData (bool bExport)        { SetDebugExportFD(bExport); SetDebugLogRawFD(bExport); }
 
     // livetraffic/dbg/model_matching: Debug Model Matching (by XPMP2)
     inline bool GetDebugModelMatching() const   { return bDebugModelMatching; }
-    
+
     // Number of aircraft
     inline int GetNumAc() const                 { return cntAc; }
     int IncNumAc();
@@ -908,11 +909,11 @@ public:
     inline std::string GetXPSystemPath() const  { return XPSystemPath; }
     inline std::string GetLTPluginPath() const  { return LTPluginPath; }
     inline std::string GetDirSeparator() const  { return DirSeparator; }
-    
+
     // Load/save config file (basically a subset of LT dataRefs)
     bool LoadConfigFile();
     bool SaveConfigFile();
-    
+
     // Re-Init
     inline bool IsReInitAll() const { return bReInitAll; }
     inline void SetReInitAll (bool b) { bReInitAll = b; }
@@ -924,7 +925,7 @@ protected:
     void UpdateUsersPlanePos ();                ///< fetches user's plane position
     static void UpdateViewPos();                ///< read and cache camera position
 
-    
+
 //MARK: Processed values
 public:
     static positionTy GetViewPos();            // view position in World coordinates
@@ -934,7 +935,7 @@ public:
     bool ShallDrawLabels() const;
     bool ShallDrawMapLabels() const { return labelShown.bMap; }
     bool ToggleLabelDraw();                 // returns new value
-    
+
     // Weather
     bool WeatherUpdate ();              ///< check if weather updated needed, then do
     /// @brief set/update current weather

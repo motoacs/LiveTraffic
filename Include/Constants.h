@@ -274,7 +274,8 @@ constexpr const char* REMOTE_SIGNATURE      =  "TwinFan.plugin.XPMP2.Remote";
 #define PATH_RESOURCES_SCSL     "Resources/ShippedCSL"
 // these are under X-Plane's root dir
 #define PATH_DEBUG_RAW_FD       "LTRawFD.log"
-#define PATH_DEBUG_EXPORT_FD    "Output/LTExportFD - %Y-%m-%d %H.%M.%S.csv"
+#define PATH_DEBUG_EXPORT_FD    "Output/LTExportFD.csv"
+// #define PATH_DEBUG_EXPORT_FD    "Output/LTExportFD - %Y-%m-%d %H.%M.%S.csv"
 #define PATH_RES_PLUGINS        "Resources/plugins"
 #define PATH_CONFIG_FILE        "Output/preferences/LiveTraffic.prf"
 // Standard path delimiter
