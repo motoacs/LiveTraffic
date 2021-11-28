@@ -1,3 +1,9 @@
+# Changes from original (TwinFan/LiveTraffic)
+
+- Changed output frequency of debug csv to 5 seconds.
+- Changed output csv file name to "LTExportFD.csv".
+- Enable debug csv output by default.
+
 # LiveTraffic
 
 LiveTraffic is a plugin for the flight simulator [X-Plane](https://www.x-plane.com) to show real life traffic, based on publicly available live flight data, as additional planes within X-Plane.
