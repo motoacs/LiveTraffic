@@ -1,4 +1,6 @@
-# Changes from original (TwinFan/LiveTraffic)
+## Changes from original (TwinFan/LiveTraffic)
+
+Small changes to support [multiplayerXP](https://github.com/motoacs/multiplayerXP)
 
 - Changed output frequency of debug csv to 5 seconds.
 - Changed output csv file name to "LTExportFD.csv".
