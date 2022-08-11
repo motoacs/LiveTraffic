@@ -104,8 +104,8 @@ constexpr int         OGN_APRS_PORT         = 14580;
 constexpr size_t      OGN_APRS_BUF_SIZE     = 4096;
 constexpr int         OGN_APRS_TIMEOUT_S    = 60;           ///< there's a keep alive _from_ APRS every 20s, so if we don't receive anything in 60s there's something wrong
 constexpr float       OGN_APRS_SEND_KEEPALV = 10 * 60.0f;   ///< [s] how often shall _we_ send a keep alive _to_ APRS?
-constexpr const char* OGN_APRS_LOGIN        = "user LiveTrffc pass -1 vers " LIVE_TRAFFIC " %.2f filter r/%.3f/%.3f/%u -p/oimqstunw\r\n";
-constexpr const char* OGN_APRS_KEEP_ALIVE   = "# " LIVE_TRAFFIC " %.2f still alive at %sZ\r\n";
+constexpr const char* OGN_APRS_LOGIN        = "user LiveTrffc pass -1 vers " LIVE_TRAFFIC " %s filter r/%.3f/%.3f/%u -p/oimqstunw\r\n";
+constexpr const char* OGN_APRS_KEEP_ALIVE   = "# " LIVE_TRAFFIC " %s still alive at %sZ\r\n";
 constexpr const char* OGN_APRS_LOGIN_GOOD   = "# logresp LiveTrffc unverified, server ";
 
 // Constructor
@@ -172,6 +172,8 @@ std::string OpenGliderConnection::GetURL (const positionTy& pos)
 ///          and process everything till we find `""/>`
 bool OpenGliderConnection::ProcessFetchedData (mapLTFlightDataTy& fdMap)
 {
+    char buf[100];
+
     // any a/c filter defined for debugging purposes?
     std::string acFilter ( dataRefs.GetDebugAcFilter() );
     
@@ -209,7 +211,8 @@ bool OpenGliderConnection::ProcessFetchedData (mapLTFlightDataTy& fdMap)
         }
         
         // We sliently skip all static objects
-        if (std::stoi(tok[GNF_FLARM_ACFT_TYPE]) == FAT_STATIC_OBJ)
+        if (dataRefs.GetHideStaticTwr() &&
+            std::stoi(tok[GNF_FLARM_ACFT_TYPE]) == FAT_STATIC_OBJ)
             continue;
         
         // We also skip records, which are outdated by the time they arrive
@@ -244,10 +247,9 @@ bool OpenGliderConnection::ProcessFetchedData (mapLTFlightDataTy& fdMap)
             mapFdLock.unlock();
 
             // completely new? fill key fields and define static data
-            // (for OGN we only define static data initially,
-            //  it has no changing elements, and ICAO a/c type derivation
-            //  has a random element (if more than one ICAO type is defined))
-            bool bSendStaticData = false;
+            // (for OGN some data we only define initially,
+            //  ICAO a/c type derivation has a random element
+            //  (if more than one ICAO type is defined))
             if ( fd.empty() ) {
                 fd.SetKey(fdKey);
             
@@ -261,10 +263,8 @@ bool OpenGliderConnection::ProcessFetchedData (mapLTFlightDataTy& fdMap)
                     stat.acTypeIcao = OGNGetIcaoAcType(acTy);
                 if (stat.mdl.empty())
                     stat.mdl        = stat.catDescr;
-
-                bSendStaticData = true;
             }
-            
+                        
             // dynamic data
             {   // unconditional...block is only for limiting local variables
                 LTFlightData::FDDynamicData dyn;
@@ -289,10 +289,12 @@ bool OpenGliderConnection::ProcessFetchedData (mapLTFlightDataTy& fdMap)
                                 dyn.heading);
                 pos.f.onGrnd = GND_UNKNOWN;         // there is no GND indicator in OGN data
                 
-                // Update static data if requested
-                if (bSendStaticData) {
-                    fd.UpdateData(std::move(stat), pos.dist(viewPos));
-                }
+                // Update the slug with current position
+                snprintf(buf, sizeof(buf), OPGLIDER_CHECK_URL,
+                         pos.lat(), pos.lon());
+                stat.slug = buf;
+                // Update static data
+                fd.UpdateData(std::move(stat), pos.dist(viewPos));
                 
                 // position is rather important, we check for validity
                 // (we do allow alt=NAN if on ground)
@@ -428,7 +430,7 @@ bool OpenGliderConnection::APRSDoLogin (const positionTy& pos, unsigned dist_km)
 {
     // Prepare login string like "user LiveTrffc pass -1 vers LiveTraffic 2.20 filter r/43.3/-80.2/50 -p/oimqstunw"
     char sLogin[120];
-    snprintf(sLogin, sizeof(sLogin), OGN_APRS_LOGIN, VERSION_NR,
+    snprintf(sLogin, sizeof(sLogin), OGN_APRS_LOGIN, LT_VERSION,
              pos.lat(), pos.lon(), dist_km);
     aprsLastKeepAlive = dataRefs.GetMiscNetwTime();     // also counts as a message sent _to_ APRS
     DebugLogRaw(sLogin);
@@ -443,7 +445,7 @@ bool OpenGliderConnection::APRSSendKeepAlive()
 {
     // Prepare login string like "user LiveTrffc pass -1 vers LiveTraffic 2.20 filter r/43.3/-80.2/50 -p/oimqstunw"
     char sKeepAlive[120];
-    snprintf(sKeepAlive, sizeof(sKeepAlive), OGN_APRS_KEEP_ALIVE, VERSION_NR,
+    snprintf(sKeepAlive, sizeof(sKeepAlive), OGN_APRS_KEEP_ALIVE, LT_VERSION,
              ts2string(time(nullptr)).c_str());
     LOG_MSG(logDEBUG, "OGN: Sending keep alive: %s", sKeepAlive);
     DebugLogRaw(sKeepAlive);
@@ -479,6 +481,8 @@ bool OpenGliderConnection::APRSProcessData (const char* buffer)
 /// @see https://github.com/svoop/ogn_client-ruby/wiki/SenderBeacon
 bool OpenGliderConnection::APRSProcessLine (const std::string& ln)
 {
+    char buf[100];
+    
     // Sanity check
     if (ln.empty()) return true;
     
@@ -555,8 +559,11 @@ bool OpenGliderConnection::APRSProcessLine (const std::string& ln)
     // We silently skip all static objects and those who do not want to be tracked
     uint8_t senderDetails   = (uint8_t)std::stoul(m.str(M_SEND_DETAILS), nullptr, 16);
     FlarmAircraftTy acTy    = FlarmAircraftTy((senderDetails & 0b00111100) >> 2);
-    if ((senderDetails & 0b11000000) ||         // "No tracking" or "stealth mode" set?
-        (acTy == FAT_STATIC_OBJ))               // Static object?
+    if (senderDetails & 0b11000000)             // "No tracking" or "stealth mode" set?
+        return true;                            // -> ignore
+    
+    if (dataRefs.GetHideStaticTwr() &&          // Shall hide static objects and it is
+        acTy == FAT_STATIC_OBJ)                 // Static object?
         return true;                            // -> ignore
     
     // Timestamp - skip too old records
@@ -597,7 +604,6 @@ bool OpenGliderConnection::APRSProcessLine (const std::string& ln)
         // (for OGN we only define static data initially,
         //  it has no changing elements, and ICAO a/c type derivation
         //  has a random element (if more than one ICAO type is defined))
-        bool bSendStaticData = false;
         if ( fd.empty() ) {
             fd.SetKey(fdKey);
         
@@ -609,8 +615,6 @@ bool OpenGliderConnection::APRSProcessLine (const std::string& ln)
                 stat.acTypeIcao = OGNGetIcaoAcType(acTy);
             if (stat.mdl.empty())
                 stat.mdl        = stat.catDescr;
-
-            bSendStaticData = true;
         }
         
         // dynamic data
@@ -648,12 +652,13 @@ bool OpenGliderConnection::APRSProcessLine (const std::string& ln)
                             dyn.heading);
             pos.f.onGrnd = GND_UNKNOWN;         // there is no GND indicator in OGN data
             
+            // Update the slug with current position
+            snprintf(buf, sizeof(buf), OPGLIDER_CHECK_URL,
+                     pos.lat(), pos.lon());
+            stat.slug = buf;
             // Send static data if requested
-            if (bSendStaticData) {
-                const positionTy viewPos = dataRefs.GetViewPos();
-                fd.UpdateData(std::move(stat),
-                              pos.dist(viewPos));
-            }
+            fd.UpdateData(std::move(stat),
+                          pos.dist(dataRefs.GetViewPos()));
             
             // position is rather important, we check for validity
             // (we do allow alt=NAN if on ground)

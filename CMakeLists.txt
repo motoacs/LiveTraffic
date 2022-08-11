@@ -2,8 +2,16 @@
 
 cmake_minimum_required(VERSION 3.16)
 project(LiveTraffic
-        VERSION 2.51
+        VERSION 3.0.0
         DESCRIPTION "LiveTraffic X-Plane plugin")
+
+# Provide compile macros from the above project version definition
+add_compile_definitions(
+    LIVETRAFFIC_VERSION_BETA=0
+    LIVETRAFFIC_VER_MAJOR=${PROJECT_VERSION_MAJOR}
+    LIVETRAFFIC_VER_MINOR=${PROJECT_VERSION_MINOR}
+    LIVETRAFFIC_VER_PATCH=${PROJECT_VERSION_PATCH}
+)
 
 ################################################################################
 # Target Systems
@@ -40,8 +48,8 @@ add_compile_definitions(APL=$<BOOL:${APPLE}> IBM=$<BOOL:${WIN32}> LIN=$<AND:$<BO
 
 # Enable stricter warnings and then disable some we are not interested in.
 if (MSVC)
-    # Deprecation warning: once is enough
-    add_compile_options(/wo4996)
+    # Deprecation warning: once is enough / provide me with actual __cplusplus
+    add_compile_options(/wo4996 /Zc:__cplusplus)
 else()
     add_compile_options(-Wall -Wshadow -Wfloat-equal -Wextra)
     if (CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 9.0 AND NOT APPLE)
@@ -56,7 +64,6 @@ else()
     # Makes symbols non-exported by default.
     add_compile_options(-fvisibility=hidden)
 endif()
-
 
 # Debug vs Release build
 if(CMAKE_BUILD_TYPE MATCHES "Debug")
@@ -81,8 +88,16 @@ else()
     endif()
 endif()
 
+# Mingw Threads
+if (MINGW)
+    option(MINGW_STDTHREADS_GENERATE_STDHEADERS "" ON)
+    add_subdirectory(Lib/mingw-std-threads)
+endif()
+
 # Set include directories used by our code and dependencies.
 include_directories("${CMAKE_SOURCE_DIR}/Include")
+include_directories("${CMAKE_SOURCE_DIR}/Lib/base64")
+include_directories("${CMAKE_SOURCE_DIR}/Lib/OpenGL")
 include_directories("${CMAKE_SOURCE_DIR}/Lib/parson")
 include_directories("${CMAKE_SOURCE_DIR}/Lib/XPMP2/XPMP2.framework/Versions/Current/Headers")
 include_directories("${CMAKE_SOURCE_DIR}/Lib/LTAPI")
@@ -109,6 +124,7 @@ set(Header_Files
     Include/LTChannel.h
     Include/LTFlightData.h
     Include/LTForeFlight.h
+    Include/LTFSCharter.h
     Include/LTImgWindow.h
     Include/LTOpenGlider.h
     Include/LTOpenSky.h
@@ -117,6 +133,7 @@ set(Header_Files
     Include/Network.h
     Include/SettingsUI.h
     Include/TextIO.h
+    Lib/base64/base64.h
     Lib/parson/parson.h
     Lib/LTAPI/LTAPI.h
     Lib/ImGui/imconfig.h
@@ -150,6 +167,7 @@ set(Source_Files
     Src/LTChannel.cpp
     Src/LTFlightData.cpp
     Src/LTForeFlight.cpp
+    Src/LTFSCharter.cpp
     Src/LTImgWindow.cpp
     Src/LTMain.cpp
     Src/LTOpenGlider.cpp
@@ -160,6 +178,7 @@ set(Source_Files
     Src/Network.cpp
     Src/SettingsUI.cpp
     Src/TextIO.cpp
+    Lib/base64/base64.c
     Lib/parson/parson.c
     Lib/ImGui/imgui_draw.cpp
     Lib/ImGui/imgui_widgets.cpp
@@ -168,6 +187,9 @@ set(Source_Files
     Lib/ImgWindow/ImgFontAtlas.cpp
     Lib/ImgWindow/ImgWindow.cpp
 )
+if (WIN32)
+    list(APPEND Source_Files "LiveTraffic.rc")
+endif()
 source_group("Source Files" FILES ${Source_Files})
 
 set(ALL_FILES  ${Header_Files} ${Source_Files})
@@ -175,13 +197,15 @@ set(ALL_FILES  ${Header_Files} ${Source_Files})
 add_library(LiveTraffic MODULE ${ALL_FILES})
 
 # ImGui files do a lot of comparisons on floats
-set_source_files_properties(
-    Lib/ImGui/imgui_draw.cpp
-    Lib/ImGui/imgui_widgets.cpp
-    Lib/ImGui/imgui.cpp
-    Lib/ImgWindow/ImgWindow.cpp
-PROPERTIES
-    COMPILE_FLAGS -Wno-float-equal)
+if (NOT MSVC)
+    set_source_files_properties(
+        Lib/ImGui/imgui_draw.cpp
+        Lib/ImGui/imgui_widgets.cpp
+        Lib/ImGui/imgui.cpp
+        Lib/ImgWindow/ImgWindow.cpp
+    PROPERTIES
+        COMPILE_FLAGS -Wno-float-equal)
+endif()
 
 ################################################################################
 # Define pre-compiled header
@@ -191,6 +215,7 @@ target_precompile_headers(LiveTraffic PUBLIC Include/LiveTraffic.h)
 
 # Exclude all the non-core-LiveTraffic modules from the pch
 set_source_files_properties(
+    Lib/base64/base64.c
     Lib/parson/parson.c
     Lib/ImGui/imgui_draw.cpp
     Lib/ImGui/imgui_widgets.cpp
@@ -214,7 +239,7 @@ elseif (UNIX)
     list(APPEND CMAKE_LIBRARY_PATH "${CMAKE_CURRENT_SOURCE_DIR}/Lib/XPMP2/$ENV{platform}")
 elseif (WIN32)
     list(APPEND CMAKE_LIBRARY_PATH "${CMAKE_CURRENT_SOURCE_DIR}/Lib/CURL")
-    list(APPEND CMAKE_LIBRARY_PATH "${CMAKE_CURRENT_SOURCE_DIR}/Lib/XPMP2/$ENV{platform}")
+    list(APPEND CMAKE_LIBRARY_PATH "${CMAKE_CURRENT_SOURCE_DIR}/Lib/XPMP2/win")
     list(APPEND CMAKE_LIBRARY_PATH "${CMAKE_CURRENT_SOURCE_DIR}/Lib/SDK/Libraries/Win")
 endif ()
 
@@ -222,6 +247,13 @@ endif ()
 find_library(XPMP2_LIBRARY XPMP2 REQUIRED)
 message ("   XPMP2_LIBRARY = ${XPMP2_LIBRARY}")
 target_link_libraries(LiveTraffic ${XPMP2_LIBRARY})
+
+# MSVC doesn't like to find a file named "libcurl.lib", so we just tell it where to look
+if (MSVC)
+    set(CURL_INCLUDE_DIR        "lib/CURL")
+    set(CURL_LIBRARY_RELEASE    "${CMAKE_CURRENT_SOURCE_DIR}/Lib/CURL/libcurl.lib")
+    set(CURL_LIBRARY_DEBUG      "${CMAKE_CURRENT_SOURCE_DIR}/Lib/CURL/libcurl.lib")
+endif()
 
 # Link libcurl
 find_package(CURL REQUIRED)
@@ -249,8 +281,10 @@ endif ()
 
 if (WIN32)
     # Link platform-specific libraries especially for networking
-    target_link_libraries(LiveTraffic ws2_32.lib iphlpapi wldap32.lib advapi32.lib crypt32.lib)
+    target_link_libraries(LiveTraffic ws2_32.lib iphlpapi wldap32.lib advapi32.lib crypt32.lib opengl32)
     if (MINGW)
+        # Include MingW threads
+        target_link_libraries(LiveTraffic mingw_stdthreads)
         # When cross-compiling we link the standard libraries statically
         target_link_options(LiveTraffic PRIVATE -static-libgcc -static-libstdc++)
     endif()

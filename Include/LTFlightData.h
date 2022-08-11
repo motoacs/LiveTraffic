@@ -28,16 +28,6 @@
 // from LTChannel.h
 class LTChannel;
 
-// transponder types (as defined by ADSB exchange)
-enum transpTy {
-    trt_Unknown=0,
-    trt_Mode_S=1,
-    trt_ADS_B_unknown=2,
-    trt_ADS_B_0=3,
-    trt_ADS_B_1=4,
-    trt_ADS_B_2=5
-};
-
 //
 //MARK: Flight Data
 //      Represents an Aircraft's flight data, as read from the source(s)
@@ -105,7 +95,6 @@ public:
         int             engMount = -1;  // type of engine mount
         int             year = 0;       // year built                                   2008
         bool            mil  = false;   // military?                                    false
-        transpTy        trt  = trt_Unknown; // transponder type                             ADS_B_unknown=2
         
         // more aircraft info
         const Doc8643*  pDoc8643 = NULL;
@@ -115,6 +104,7 @@ public:
         std::string     originAp;       // origin Airport
         std::string     destAp;         // destination Airport
         std::string     flight;         // flight code
+        std::string     slug;           ///< URL to flight details
         
         // operator
         std::string     op;             // operator                                     Air Berlin
@@ -152,7 +142,7 @@ public:
     // KEY (protected, can be set only once, no mutex-control)
 public:
     // in ascending order of priority
-    enum FDKeyType { KEY_UNKNOWN=0, KEY_OGN, KEY_RT, KEY_FLARM, KEY_ICAO };
+    enum FDKeyType { KEY_UNKNOWN=0, KEY_OGN, KEY_RT, KEY_FLARM, KEY_ICAO, KEY_FSC, KEY_ADSBEX };
     struct FDKeyTy {
         FDKeyType               eKeyType = KEY_UNKNOWN;
         std::string             key;            // the primary key in use
@@ -239,6 +229,9 @@ public:
     static std::ofstream fileExport;
     static double fileExportTsBase;         ///< when normalizing timestamps this is the base
 
+    /// Cache for flight model in use, actually of type LTAircraft::FlightModel, but we can't forward-declare it here
+    const void* pMdl = nullptr;
+    
 protected:
     static std::string fileExportName;      ///< current export file's name
 

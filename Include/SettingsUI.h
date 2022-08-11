@@ -32,6 +32,11 @@ protected:
     /// Search filter
     char sFilter[50] = {0};
 
+    // Channel: OpenSky
+    std::string sOpenSkyUser;       ///< OpenSky Network user
+    std::string sOpenSkyPwd;        ///< OpenSky Network password
+    bool bOpenSkyPwdClearText = false;  ///< Is OpenSky pwd displayed clear text?
+    
     // Channel: ADS-B Exchange
     enum {
         ADSBX_KEY_NO_ACTION = 0,    ///< no key test currently happening
@@ -45,6 +50,15 @@ protected:
     // Channel: Open Glider Network
     /// buffers for editing of Flarm a/c type mappings
     std::array<std::string,14> aFlarmAcTys;
+    
+    // Channel: RealTraffic
+    std::string sRTPort;            ///< RealTraffic traffic port
+    
+    // Channel: FSCharter
+    std::string sFSCUser;           ///< FSC user
+    std::string sFSCPwd;            ///< FSC password
+    bool bFSCPwdClearText = false;  ///< Is FSC pwd displayed clear text?
+    
 
     // CSL
     int cslActiveLn = -1;           ///< CSL path line currently being edited

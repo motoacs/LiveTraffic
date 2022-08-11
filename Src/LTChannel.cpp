@@ -433,7 +433,7 @@ size_t LTOnlineChannel::ReceiveData(const char *ptr, size_t size, size_t nmemb, 
 }
 
 // debug: log raw network data to a log file
-void LTOnlineChannel::DebugLogRaw(const char *data)
+void LTOnlineChannel::DebugLogRaw(const char *data, bool bHeader)
 {
     // no logging? return (after closing the file if open)
     if (!dataRefs.GetDebugLogRawFD()) {
@@ -469,19 +469,44 @@ void LTOnlineChannel::DebugLogRaw(const char *data)
         SHOW_MSG(logWARN, DBG_RAW_FD_START, PATH_DEBUG_RAW_FD);
     }
     
+    // Receives modifiable copy of the data
+    std::string dupData (data);
+    
+    // Overwrite client_secret
+    // {"grant_type": "password","client_id": 1,"client_secret": "7HTOw2421WBZxrGCksPvez2BG6Yl918uUHAcEWRg","username":
+    std::string::size_type pos = dupData.find("\"client_secret\":");
+    if (pos != std::string::npos && dupData.size() >= pos + 60)
+        dupData.replace(pos+18, 40, "...");
+    
+    // limit output in case a password or token is found
+    pos = dupData.find("\"password\":");
+    if (pos != std::string::npos) {
+        // just truncate after the password tag so the actual password is gone
+        dupData.erase(pos + 12);
+        dupData += "...(truncated)...";
+    }
+    
+    pos = dupData.find("\"access_token\":");
+    if (pos != std::string::npos) {
+        dupData.erase(pos + 26);
+        dupData += "...(truncated)...";
+    }
+    
     // timestamp (numerical and human readable)
     const double now = GetSysTime();
     outRaw.precision(2);
+    if (bHeader)
+        outRaw
+        << std::fixed << now << ' ' << ts2string(now,2)
+        << " - SimTime "
+        << dataRefs.GetSimTimeString()
+        << " - "
+        // Channel's name
+        << ChName()
+        << "\n";
     outRaw
-    << std::fixed << now << ' ' << ts2string(now,2)
-    << " - SimTime "
-    << dataRefs.GetSimTimeString()
-    << " - "
-    // Channel's name
-    << ChName()
-    << "\n"
-    // the actual given data
-    << data
+    // the actual given data, stripped from general personal data
+    << str_replPers(dupData)
     // newlines + flush
     << std::endl;
 }
@@ -501,11 +526,23 @@ bool LTOnlineChannel::FetchAllData (const positionTy& pos)
     if (url.empty())
         return false;
     
+    // ask for a body of a POST request (to be put into requBody)
+    ComputeBody(pos);
+    
     // put together the REST request
     curl_easy_setopt(pCurl, CURLOPT_URL, url.c_str());
     curl_easy_setopt(pCurl, CURLOPT_BUFFERSIZE, netDataSize );
     curl_easy_setopt(pCurl, CURLOPT_TIMEOUT, nTimeout);
 
+    // Set up the request
+    curl_easy_setopt(pCurl, CURLOPT_NOBODY,  0);
+    if (requBody.empty())
+        // HTTPS GET
+        curl_easy_setopt(pCurl, CURLOPT_HTTPGET, 1);
+    else
+        // HTTPS POST
+        curl_easy_setopt(pCurl, CURLOPT_POSTFIELDS, requBody.data());
+    
     // get fresh data via the internet
     // this will take a second or more...don't try in render loop ;)
     // it is assumed that this is called in a separate thread,
@@ -513,6 +550,8 @@ bool LTOnlineChannel::FetchAllData (const positionTy& pos)
     netDataPos = 0;                 // fill buffer from beginning
     netData[0] = 0;
     DebugLogRaw(url.c_str());
+    if (!requBody.empty())
+        DebugLogRaw(requBody.c_str(), false);
     
     // perform the request and take its time
     std::chrono::time_point<std::chrono::steady_clock> tStart = std::chrono::steady_clock::now();
@@ -620,20 +659,17 @@ bool LTFlightDataEnable()
 {
     // create list of flight and master data connections
     listFDC.clear();
-    if ( dataRefs.GetUseHistData() ) {
-        // load historic data readers
-        listFDC.emplace_back(new ADSBExchangeHistorical);
-    } else {
-        // load live feed readers (in order of priority)
-        listFDC.emplace_back(new RealTrafficConnection(mapFd));
-        listFDC.emplace_back(new OpenSkyConnection);
-        listFDC.emplace_back(new ADSBExchangeConnection);
-        listFDC.emplace_back(new OpenGliderConnection);
-        // load online master data connections
-        listFDC.emplace_back(new OpenSkyAcMasterdata);
-        // load other channels
-        listFDC.emplace_back(new ForeFlightSender(mapFd));
-    }
+
+    // load live feed readers (in order of priority)
+    listFDC.emplace_back(new RealTrafficConnection(mapFd));
+    listFDC.emplace_back(new OpenSkyConnection);
+    listFDC.emplace_back(new ADSBExchangeConnection);
+    listFDC.emplace_back(new OpenGliderConnection);
+    listFDC.emplace_back(new FSCConnection);
+    // load online master data connections
+    listFDC.emplace_back(new OpenSkyAcMasterdata);
+    // load other channels
+    listFDC.emplace_back(new ForeFlightSender(mapFd));
     
     // Success only if there are still connections left
     return listFDC.size() > 0;
@@ -762,7 +798,6 @@ bool LTFlightDataShowAircraft()
     
     // tell the user we do something in the background
     SHOW_MSG(logINFO,
-             dataRefs.GetUseHistData() ? MSG_READING_HIST_FD :
              MSG_REQUESTING_LIVE_FD);
     
     // flag for: as soon as data arrives start buffer countdown
@@ -835,6 +870,19 @@ void LTFlightDataRestartInvalidChs ()
             pCh->SetValid(true, true);
 }
 
+
+// Return channel object
+LTChannel* LTFlightDataGetCh (dataRefsLT ch)
+{
+    listPtrLTChannelTy::iterator iter =
+    std::find_if(listFDC.begin(), listFDC.end(),
+                 [ch](const ptrLTChannelTy& pCh)
+                 { return pCh->channel == ch; });
+    if (iter == listFDC.end())
+        return nullptr;
+    else
+        return iter->get();
+}
 
 //
 //MARK: Aircraft Maintenance

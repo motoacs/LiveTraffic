@@ -45,6 +45,7 @@
 
 // Windows
 #if IBM
+#include <winsock2.h>
 #include <windows.h>
 #include <processthreadsapi.h>
 // we prefer std::max/min of <algorithm>
@@ -53,13 +54,7 @@
 #endif
 
 // Open GL
-#if LIN
-#include <GL/gl.h>
-#elif __GNUC__
-#include <OpenGL/gl.h>
-#else
-#include <GL/gl.h>
-#endif
+#include "SystemGL.h"
 
 // C++
 #include <climits>
@@ -89,6 +84,9 @@
 #include "XPLMProcessing.h"
 #include "XPLMCamera.h"
 #include "XPLMNavigation.h"
+
+// Base64
+#include "base64.h"
 
 // ImGui / ImgWindow
 #include "imgui.h"
@@ -131,6 +129,7 @@ extern DataRefs dataRefs;
 #include "LTOpenSky.h"
 #include "LTADSBEx.h"
 #include "LTOpenGlider.h"
+#include "LTFSCharter.h"
 
 //MARK: Global Control functions
 bool LTMainInit ();
@@ -195,8 +194,8 @@ bool FileRecLookup (std::ifstream& f, size_t& n,
 
 // MARK: URL/Help support
 
-void LTOpenURL  (const std::string url);
-void LTOpenHelp (const std::string path);
+void LTOpenURL  (const std::string& url);
+void LTOpenHelp (const std::string& path);
 
 // MARK: String/Text Functions
 
@@ -211,6 +210,9 @@ inline std::string strAtMost(const std::string s, size_t m) {
     return s.length() <= m ? s :
     s.substr(0, m-3) + "...";
 }
+
+/// Replace all occurences of one string with another
+void str_replaceAll(std::string& str, const std::string& from, const std::string& to);
 
 // trimming of string
 // https://stackoverflow.com/questions/216823/whats-the-best-way-to-trim-stdstring
@@ -232,6 +234,9 @@ inline std::string& trim(std::string& s, const char* t = WHITESPACE)
     return ltrim(rtrim(s, t), t);
 }
 
+/// Cut off everything after `from` from `s`, `from` including
+std::string& cut_off(std::string& s, const std::string& from);
+
 // last word of a string
 std::string str_last_word (const std::string& s);
 // separates string into tokens
@@ -243,6 +248,9 @@ std::string str_concat (const std::vector<std::string>& vs, const std::string& s
 // returns first non-empty string, and "" in case all are empty
 std::string str_first_non_empty (const std::initializer_list<const std::string>& l);
 
+/// Replaces personal information in the string, like email address
+std::string& str_replPers (std::string& s);
+
 // push a new item to the end only if it doesn't exist yet
 template< class ContainerT>
 void push_back_unique(ContainerT& list, typename ContainerT::const_reference key)
@@ -250,6 +258,17 @@ void push_back_unique(ContainerT& list, typename ContainerT::const_reference key
     if ( std::find(list.cbegin(),list.cend(),key) == list.cend() )
         list.push_back(key);
 }
+
+/// Base64 encoding
+std::string EncodeBase64 (const std::string& _clear);
+/// Base64 decoding
+std::string DecodeBase64 (const std::string& _encoded);
+/// XOR a string s with another one t, potentially repeating the application of t if t is shorter than s
+std::string str_xor (const std::string& s, const char* t);
+/// Obfuscate a secret string for storing in the settings file
+std::string Obfuscate (const std::string& _clear);
+/// Undo obfuscation
+std::string Cleartext (const std::string& _obfuscated);
 
 // MARK: Time Functions
 
@@ -270,6 +289,9 @@ inline time_t mktime_utc (std::tm& tm)
 
 /// Converts a UTC time to epoch value, assuming today's date
 time_t mktime_utc (int h, int min, int s);
+
+/// Convert time string "YYYY-MM-DD HH:MM:SS" to epoch value
+time_t mktime_string (const std::string& s);
 
 // format timestamp
 std::string ts2string (time_t t);
@@ -302,6 +324,9 @@ std::string GetNearestAirportId (const positionTy& _pos, positionTy* outApPos = 
 /// Fetch nearest airport id by location
 inline std::string GetNearestAirportId (float lat, float lon)
 { return GetNearestAirportId(positionTy((double)lat,(double)lon)); }
+
+/// Convert ADS-B Emitter Category to text
+const char* GetADSBEmitterCat (const std::string& cat);
 
 /// Which plugin has control of AI?
 std::string GetAIControlPluginName ();

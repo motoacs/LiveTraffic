@@ -69,7 +69,7 @@ wndTitle(LIVE_TRAFFIC)
     
     // Compute version info text
     char buf[100];
-    if constexpr (VERSION_BETA)
+    if constexpr (LIVETRAFFIC_VERSION_BETA)
         snprintf(buf, sizeof(buf), LIVE_TRAFFIC " %s, BETA version limited to %s",
                 LT_VERSION_FULL, LT_BETA_VER_LIMIT_TXT);
     else
@@ -259,7 +259,7 @@ void InfoListWnd::buildInterface()
                     char buf[50];
                     if (ImGui::TableSetColumnIndex(0)) {
                         std::time_t t_c = std::chrono::system_clock::to_time_t(msg.wallTime);
-                        strftime(buf, sizeof(buf), "%T",
+                        strftime(buf, sizeof(buf), "%H:%M:%S",
                                  std::localtime(&t_c));
                         ImGui::TextUnformatted(buf);
                     }
@@ -330,7 +330,7 @@ void InfoListWnd::buildInterface()
                             if (ImGui::TableSetColumnIndex(1)) ImGui::Text("%d", dataRefs.GetNumAc());
                             ImGui::TableNextRow();
                             if (ImGui::TableSetColumnIndex(0)) ImGui::TextUnformatted("Aircraft seen in tracking data");
-                            if (ImGui::TableSetColumnIndex(1)) ImGui::Text("%lu", mapFd.size());
+                            if (ImGui::TableSetColumnIndex(1)) ImGui::Text("%lu", (long unsigned)mapFd.size());
                             
                             // Warning of there's one CSL model only
                             if (numCSLModels == 1) {
@@ -412,10 +412,10 @@ void InfoListWnd::buildInterface()
                                 }
                                 // Channel's status
                                 if (ImGui::TableSetColumnIndex(1)) {
-                                    if (pCh.get() == dataRefs.pRTConn)  // special treatment for RealTraffic
-                                        ImGui::TextRealTrafficStatus();
-                                    else
-                                        ImGui::TextUnformatted(pCh->GetStatusText().c_str());
+                                    ImGui::TextUnformatted(pCh->GetStatusText().c_str());
+                                    const std::string extStatus = pCh->GetStatusTextExt();
+                                    if (!extStatus.empty())
+                                        ImGui::TextUnformatted(extStatus.c_str());
                                 }
                                 ImGui::PopID();
                             }

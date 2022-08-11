@@ -29,10 +29,10 @@
 //
 // MARK: Version Information (CHANGE VERSION HERE)
 //
-constexpr float VERSION_NR = 2.53f;
-constexpr bool VERSION_BETA = false;
-extern float verXPlaneOrg;          // version on X-Plane.org
-extern int verDateXPlaneOrg;        // and its date
+
+/// Verson number combined as a single unsigned, like 3.2.1 = 30201
+constexpr unsigned LT_VER_NO = 10000 * LIVETRAFFIC_VER_MAJOR + 100 * LIVETRAFFIC_VER_MINOR + LIVETRAFFIC_VER_PATCH;
+extern unsigned verXPlaneOrg;       ///< version on X-Plane.org
 
 //MARK: Window Position
 #define WIN_WIDTH       400         // window width
@@ -74,7 +74,7 @@ constexpr double FLIGHT_LOOP_INTVL  = -5.0;     // call ourselves every 5 frames
 constexpr double AC_MAINT_INTVL     = 2.0;      // seconds (calling a/c maintenance periodically)
 constexpr double TIME_REQU_POS      = 0.5;      // seconds before reaching current 'to' position we request calculation of next position
 constexpr double SIMILAR_TS_INTVL = 3;          // seconds: Less than that difference and position-timestamps are considered "similar" -> positions are merged rather than added additionally
-constexpr double SIMILAR_POS_DIST = 3;          // [m] if distance between positions less than this then favor heading from flight data over vector between positions
+constexpr double SIMILAR_POS_DIST = 7;          // [m] if distance between positions less than this then favor heading from flight data over vector between positions
 constexpr double FD_GND_AGL =       10;         // [m] consider pos 'ON GRND' if this close to YProbe
 constexpr double FD_GND_AGL_EXT =   20;         // [m] consider pos 'ON GRND' if this close to YProbe - extended, e.g. for RealTraffic
 constexpr double PROBE_HEIGHT_LIM[] = {5000,1000,500,-999999};  // if height AGL is more than ... feet
@@ -151,9 +151,6 @@ constexpr int LT_NEW_VER_CHECK_TIME = 48;   // [h] between two checks of a new
 //MARK: Text Constants
 #define LIVE_TRAFFIC            "LiveTraffic"
 #define LIVE_TRAFFIC_XPMP2      "   LT"      ///< short form for logging by XPMP2, so that log entries are aligned
-#define LT_CFG_VER_NM_CONV      "1.0"        // version of config file format, from which to convert distances from km to nm
-#define LT_CFG_VER_DEL_IMGUI    "1.1"        // cfg file version, for which we need to remove imgui config file (as we added a column into the aircraft list)
-#define LT_CFG_VERSION          "2.2"        // current version of config file format
 #define LT_FM_VERSION           "2.2"        // expected version of flight model file format
 #define PLUGIN_SIGNATURE        "TwinFan.plugin.LiveTraffic"
 #define PLUGIN_DESCRIPTION      "Create Multiplayer Aircraft based on live traffic."
@@ -165,15 +162,14 @@ constexpr const char* REMOTE_SIGNATURE      =  "TwinFan.plugin.XPMP2.Remote";
 #define MSG_WELCOME             "LiveTraffic %s successfully loaded!"
 #define MSG_REINIT              "LiveTraffic is re-initializing itself"
 #define MSG_DISABLE_MYSELF      "LiveTraffic disables itself due to unhandable exceptions"
-#define MSG_LT_NEW_VER_AVAIL    "The new version %01.2f of LiveTraffic is available at X-Plane.org!"
+#define MSG_LT_NEW_VER_AVAIL    "The new version %s of LiveTraffic is available at X-Plane.org!"
+#define MSG_LT_UPDATED          "LiveTraffic has been updated to version %s"
 #define MSG_TIMESTAMPS          "Current System time is %sZ, current simulated time is %s"
 #define MSG_AI_LOAD_ACF         "Changing AI control: X-Plane is now loading AI Aircraft models..."
 #define MSG_REQUESTING_LIVE_FD  "Requesting live flight data online..."
-#define MSG_READING_HIST_FD     "Reading historic flight data..."
 #define MSG_NUM_AC_INIT         "Initially created %d aircraft"
 #define MSG_NUM_AC_ZERO         "No more aircraft displayed"
 #define MSG_BUF_FILL_COUNTDOWN  "Filling buffer: seeing %d aircraft, displaying %d, still %ds to buffer"
-#define MSG_HIST_WITH_SYS_TIME  "When using historic data you cannot run X-Plane with 'always track system time',\ninstead, choose the historic date in X-Plane's date/time settings."
 #define INFO_WEATHER_UPDATED    "Weather updated: QNH %.f hPa at %s (%.2f / %.2f)"
 #define INFO_AC_ADDED           "Added aircraft %s, operator '%s', a/c model '%s', flight model [%s], bearing %.0f, distance %.1fnm, from channel %s"
 #define INFO_AC_MDL_CHANGED     "Changed CSL model for aircraft %s, operator '%s': a/c model now '%s' (Flight model '%s')"
@@ -208,7 +204,11 @@ constexpr const char* REMOTE_SIGNATURE      =  "TwinFan.plugin.XPMP2.Remote";
 #define CFG_DEFAULT_CAR_TYPE    "DEFAULT_CAR_TYPE"
 #define CFG_DEFAULT_AC_TYP_INFO "Default a/c type is '%s'"
 #define CFG_DEFAULT_CAR_TYP_INFO "Default car type is '%s'"
+#define CFG_OPENSKY_USER        "OpenSky_User"
+#define CFG_OPENSKY_PWD         "OpenSky_Pwd"
 #define CFG_ADSBEX_API_KEY      "ADSBEX_API_KEY"
+#define CFG_FSC_USER            "FSC_User"
+#define CFG_FSC_PWD             "FSC_Pwd"
 #define XPPRF_RENOPT_HDR        "renopt_HDR"					// XP10
 #define XPPRF_EFFECTS_04		"renopt_effects_04"				// XP11, if >= 3 then includes HDR
 #define XPPRF_RENOPT_HDR_ANTIAL "renopt_HDR_antial"
@@ -233,7 +233,7 @@ constexpr const char* REMOTE_SIGNATURE      =  "TwinFan.plugin.XPMP2.Remote";
 #define MENU_HELP_AC_INFO_WND   "A/C Info Window"
 #define MENU_HELP_SETTINGS      "Settings"
 #define MENU_HELP_INSTALL_CSL   "Installaton of CSL Models"
-#define MENU_NEWVER             "New Version %01.2f available!"
+#define MENU_NEWVER             "New Version %s available!"
 #ifdef DEBUG
 #define MENU_RELOAD_PLUGINS     "Reload all Plugins (Caution!)"
 #define MENU_REMOVE_ALL_BUT     "Remove all but selected a/c"
@@ -257,6 +257,7 @@ constexpr const char* REMOTE_SIGNATURE      =  "TwinFan.plugin.XPMP2.Remote";
 #define HELP_SET_CH_ADSBEX      "setup/installation/ads-b-exchange"
 #define HELP_SET_CH_OPENGLIDER  "setup/installation/ogn"
 #define HELP_SET_CH_REALTRAFFIC "setup/installation/realtraffic-connectivity"
+#define HELP_SET_CH_FSCHARTER   "setup/installation/fscharter"
 #define HELP_SET_OUTPUT_CH      "setup/installation/foreflight"     // currently the same as ForeFlight, which is the only output channel
 #define HELP_SET_CH_FOREFLIGHT  "setup/installation/foreflight"
 #define HELP_SET_ACLABELS       "setup/configuration/settings-a-c-labels"
@@ -292,10 +293,12 @@ constexpr long HTTP_BAD_REQUEST =   400;
 constexpr long HTTP_UNAUTHORIZED =  401;
 constexpr long HTTP_FORBIDDEN =     403;
 constexpr long HTTP_NOT_FOUND =     404;
+constexpr long HTTP_TOO_MANY_REQU = 429;        ///< too many requests, e.g. OpenSky after request limit ran out
 constexpr long HTTP_BAD_GATEWAY =   502;        // typical cloudflare responses: Bad Gateway
 constexpr long HTTP_NOT_AVAIL =     503;        //                               Service not available
 constexpr long HTTP_GATEWAY_TIMEOUT=504;        //                               Gateway Timeout
 constexpr long HTTP_TIMEOUT =       524;        //                               Connection Timeout
+constexpr long HTTP_NO_JSON =       601;        ///< private definition: cannot be parsed as JSON
 constexpr int CH_MAC_ERR_CNT =      5;          // max number of tolerated errors, afterwards invalid channel
 constexpr int SERR_LEN = 100;                   // size of buffer for IO error texts (strerror_s)
 #define ERR_XPLANE_ONLY         "LiveTraffic works in X-Plane only, version 10 or higher"

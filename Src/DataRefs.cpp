@@ -310,6 +310,7 @@ const char* DATA_REFS_XP[] = {
     "sim/time/local_date_days",
     "sim/time/use_system_time",
     "sim/time/zulu_time_sec",
+    "sim/operation/prefs/replay_mode",          //    int    y    enum    Are we in replay mode?
     "sim/graphics/view/view_is_external",
     "sim/graphics/view/view_type",
     "sim/graphics/view/using_modern_driver",    // boolean: Vulkan/Metal in use? (since XP11.50)
@@ -320,16 +321,21 @@ const char* DATA_REFS_XP[] = {
     "sim/flightmodel/position/latitude",
     "sim/flightmodel/position/longitude",
     "sim/flightmodel/position/elevation",
-    "sim/flightmodel/position/true_theta",
-    "sim/flightmodel/position/true_phi",
-    "sim/flightmodel/position/true_psi",
-    "sim/flightmodel/position/hpath",
-    "sim/flightmodel/position/true_airspeed",
+    "sim/flightmodel/position/true_theta",      // pitch
+    "sim/flightmodel/position/true_phi",        // roll
+    "sim/flightmodel/position/true_psi",        // true heading
+    "sim/flightmodel/position/mag_psi",         // magnetic heading
+    "sim/flightmodel/position/hpath",           // track
+    "sim/flightmodel/position/indicated_airspeed", // KIAS (apparently really in knots)
+    "sim/flightmodel/position/true_airspeed",   // TAS
+    "sim/flightmodel/position/groundspeed",     // GS
     "sim/flightmodel/position/vh_ind",          // float n meters/second VVI (vertical velocity in meters per second)"
     "sim/flightmodel/failures/onground_any",
     "sim/aircraft/view/acf_tailnum",            // byte[40] y string    Tail number
     "sim/aircraft/view/acf_modeS_id",           // int      y integer   24bit (0-16777215 or 0-0xFFFFFF) unique ID of the airframe. This is also known as the ADS-B "hexcode".
     "sim/aircraft/view/acf_ICAO",               // byte[40] y string    ICAO code for aircraft (a string) entered by author
+    "sim/weather/wind_direction_degt",          // float    n    [0-359)    The effective direction of the wind at the plane's location.
+    "sim/weather/wind_speed_kt",                // float    n    msc    >= 0        The effective speed of the wind at the plane's location. WARNING: this dataref is in meters/second - the dataref NAME has a bug.
     "sim/graphics/VR/enabled",
 };
 
@@ -457,8 +463,8 @@ DataRefs::dataRefDefinitionT DATA_REFS_LT[CNT_DATAREFS_LT] = {
     {"livetraffic/bulk/quick",                      DataRefs::LTGetBulkAc,  NULL,                   (void*)DR_AC_BULK_QUICK, false },
     {"livetraffic/bulk/expensive",                  DataRefs::LTGetBulkAc,  NULL,                   (void*)DR_AC_BULK_EXPENSIVE, false },
 
-    {"livetraffic/sim/date",                        DataRefs::LTGetSimDateTime, DataRefs::LTSetSimDateTime, (void*)1, false },
-    {"livetraffic/sim/time",                        DataRefs::LTGetSimDateTime, DataRefs::LTSetSimDateTime, (void*)2, false },
+    {"livetraffic/sim/date",                        DataRefs::LTGetSimDateTime, NULL,               (void*)1, false },
+    {"livetraffic/sim/time",                        DataRefs::LTGetSimDateTime, NULL,               (void*)2, false },
 
     {"livetraffic/ver/nr",                          GetLTVerNum,  NULL, NULL, false },
     {"livetraffic/ver/date",                        GetLTVerDate, NULL, NULL, false },
@@ -484,7 +490,6 @@ DataRefs::dataRefDefinitionT DATA_REFS_LT[CNT_DATAREFS_LT] = {
     {"livetraffic/cfg/log_level",                   DataRefs::LTGetInt, DataRefs::LTSetLogLevel,    GET_VAR, true },
     {"livetraffic/cfg/msg_area_level",              DataRefs::LTGetInt, DataRefs::LTSetLogLevel,    GET_VAR, true },
     {"livetraffic/cfg/log_list_len",                DataRefs::LTGetInt, DataRefs::LTSetCfgValue,    GET_VAR, true },
-    {"livetraffic/cfg/use_historic_data",           DataRefs::LTGetInt, DataRefs::LTSetUseHistData, GET_VAR, false },
     {"livetraffic/cfg/max_num_ac",                  DataRefs::LTGetInt, DataRefs::LTSetCfgValue,    GET_VAR, true, true },
     {"livetraffic/cfg/fd_std_distance",             DataRefs::LTGetInt, DataRefs::LTSetCfgValue,    GET_VAR, true, true },
     {"livetraffic/cfg/fd_snap_taxi_dist",           DataRefs::LTGetInt, DataRefs::LTSetCfgValue,    GET_VAR, true },
@@ -498,6 +503,8 @@ DataRefs::dataRefDefinitionT DATA_REFS_LT[CNT_DATAREFS_LT] = {
     {"livetraffic/cfg/hide_parking",                DataRefs::LTGetInt, DataRefs::LTSetCfgValue,    GET_VAR, true, true },
     {"livetraffic/cfg/hide_nearby_gnd",             DataRefs::LTGetInt, DataRefs::LTSetCfgValue,    GET_VAR, true, true },
     {"livetraffic/cfg/hide_nearby_air",             DataRefs::LTGetInt, DataRefs::LTSetCfgValue,    GET_VAR, true, true },
+    {"livetraffic/cfg/hide_in_replay",              DataRefs::LTGetInt, DataRefs::LTSetBool,        GET_VAR, true },
+    {"livetraffic/cfg/hide_static_twr",             DataRefs::LTGetInt, DataRefs::LTSetBool,        GET_VAR, true, true },
     {"livetraffic/cfg/copy_obj_files",              DataRefs::LTGetInt, DataRefs::LTSetCfgValue,    GET_VAR, true },
     {"livetraffic/cfg/remote_support",              DataRefs::LTGetInt, DataRefs::LTSetCfgValue,    GET_VAR, true },
     {"livetraffic/cfg/external_camera_tool",        DataRefs::LTGetInt, DataRefs::LTSetBool,        GET_VAR, true, true },
@@ -511,8 +518,10 @@ DataRefs::dataRefDefinitionT DATA_REFS_LT[CNT_DATAREFS_LT] = {
     {"livetraffic/dbg/export_fd",                   DataRefs::LTGetInt, DataRefs::LTSetBool,        GET_VAR, false },
     {"livetraffic/dbg/export_user_ac",              DataRefs::LTGetInt, DataRefs::LTSetBool,        GET_VAR, false },
     {"livetraffic/dbg/export_normalize_ts",         DataRefs::LTGetInt, DataRefs::LTSetBool,        GET_VAR, true },
+    {"livetraffic/dbg/export_format",               DataRefs::LTGetInt, DataRefs::LTSetCfgValue,    GET_VAR, true },
 
     // channel configuration options
+    {"livetraffic/channel/fscharter/environment",   DataRefs::LTGetInt, DataRefs::LTSetBool,        GET_VAR, true },
     {"livetraffic/channel/open_glider/use_requrepl",DataRefs::LTGetInt, DataRefs::LTSetBool,        GET_VAR, true },
     {"livetraffic/channel/real_traffic/listen_port",DataRefs::LTGetInt, DataRefs::LTSetCfgValue,    GET_VAR, true },
     {"livetraffic/channel/real_traffic/traffic_port",DataRefs::LTGetInt,DataRefs::LTSetCfgValue,    GET_VAR, true },
@@ -525,6 +534,7 @@ DataRefs::dataRefDefinitionT DATA_REFS_LT[CNT_DATAREFS_LT] = {
     // channels, in ascending order of priority
     {"livetraffic/channel/futuredatachn/online",    DataRefs::LTGetInt, DataRefs::LTSetBool,        GET_VAR, false },
     {"livetraffic/channel/fore_flight/sender",      DataRefs::LTGetInt, DataRefs::LTSetBool,        GET_VAR, true, true },
+    {"livetraffic/channel/fscharter/online",        DataRefs::LTGetInt, DataRefs::LTSetBool,        GET_VAR, true, true },
     {"livetraffic/channel/open_glider/online",      DataRefs::LTGetInt, DataRefs::LTSetBool,        GET_VAR, true, true },
     {"livetraffic/channel/adsb_exchange/online",    DataRefs::LTGetInt, DataRefs::LTSetBool,        GET_VAR, true, true },
     {"livetraffic/channel/adsb_exchange/historic",  DataRefs::LTGetInt, DataRefs::LTSetBool,        GET_VAR, false },
@@ -558,7 +568,6 @@ void* DataRefs::getVarAddr (dataRefsLT dr)
         case DR_CFG_LOG_LEVEL:              return &iLogLevel;
         case DR_CFG_MSG_AREA_LEVEL:         return &iMsgAreaLevel;
         case DR_CFG_LOG_LIST_LEN:           return &logListLen;
-        case DR_CFG_USE_HISTORIC_DATA:      return &bUseHistoricData;
         case DR_CFG_MAX_NUM_AC:             return &maxNumAc;
         case DR_CFG_FD_STD_DISTANCE:        return &fdStdDistance;
         case DR_CFG_FD_SNAP_TAXI_DIST:      return &fdSnapTaxiDist;
@@ -572,6 +581,8 @@ void* DataRefs::getVarAddr (dataRefsLT dr)
         case DR_CFG_HIDE_PARKING:           return &hideParking;
         case DR_CFG_HIDE_NEARBY_GND:        return &hideNearbyGnd;
         case DR_CFG_HIDE_NEARBY_AIR:        return &hideNearbyAir;
+        case DR_CFG_HIDE_IN_REPLAY:         return &hideInReplay;
+        case DR_CFG_HIDE_STATIC_TWR:        return &hideStaticTwr;
         case DR_CFG_COPY_OBJ_FILES:         return &cpyObjFiles;
         case DR_CFG_REMOTE_SUPPORT:         return &remoteSupport;
         case DR_CFG_EXTERNAL_CAMERA:        return &bUseExternalCamera;
@@ -585,8 +596,10 @@ void* DataRefs::getVarAddr (dataRefsLT dr)
         case DR_DBG_EXPORT_FD:              return &bDebugExportFd;
         case DR_DBG_EXPORT_USER_AC:         return &bDebugExportUserAc;
         case DR_DBG_EXPORT_NORMALIZE_TS:    return &bDebugExportNormTS;
+        case DR_DBG_EXPORT_FORMAT:          return &eDebugExportFdFormat;
 
         // channel configuration options
+        case DR_CFG_FSC_ENV:                return &fscEnv;
         case DR_CFG_OGN_USE_REQUREPL:       return &ognUseRequRepl;
         case DR_CFG_RT_LISTEN_PORT:         return &rtListenPort;
         case DR_CFG_RT_TRAFFIC_PORT:        return &rtTrafficPort;
@@ -1000,7 +1013,7 @@ void DataRefs::UpdateUsersPlanePos ()
     lastUsersPlanePos = pos;
     
     // also fetch true airspeed and track
-    lastUsersTrueAirspeed   = XPLMGetDataf(adrXP[DR_PLANE_TRUE_AIRSPEED]);
+    lastUsersTrueAirspeed   = XPLMGetDataf(adrXP[DR_PLANE_TAS]);
     lastUsersTrack          = XPLMGetDataf(adrXP[DR_PLANE_TRACK]);
 }
 
@@ -1028,17 +1041,55 @@ void DataRefs::ExportUserAcData()
         modeS_ID = DEFAULT_MODES_ID;
 
     // output a tracking data record
-    char buf[256];
-    snprintf(buf, sizeof(buf), "AITFC,%u,%.6f,%.6f,%.0f,%.0f,%c,%.0f,%.0f,%s,%s,%s,,,%.0f\n",
-             modeS_ID,
-             lastUsersPlanePos.lat(), lastUsersPlanePos.lon(),
-             nanToZero(dataRefs.WeatherPressureAlt_ft(lastUsersPlanePos.alt_ft())),
-             XPLMGetDataf(adrXP[DR_PLANE_VVI]),
-             (lastUsersPlanePos.IsOnGnd() ? '0' : '1'),
-             lastUsersPlanePos.heading(), lastUsersTrueAirspeed * KT_per_M_per_S,
-             EXPORT_USER_CALL,
-             userIcao, userReg,
-             lastUsersPlanePos.ts() - nanToZero(LTFlightData::fileExportTsBase));
+    char buf[1024];
+    switch (dataRefs.GetDebugExportFormat()) {
+        case EXP_FD_AITFC:
+            snprintf(buf, sizeof(buf), "AITFC,%u,%.6f,%.6f,%.0f,%.0f,%c,%.0f,%.0f,%s,%s,%s,,,%.0f\n",
+                     modeS_ID,                                                              // hexid
+                     lastUsersPlanePos.lat(), lastUsersPlanePos.lon(),                      // lat, lon
+                     nanToZero(dataRefs.WeatherPressureAlt_ft(lastUsersPlanePos.alt_ft())), // alt
+                     XPLMGetDataf(adrXP[DR_PLANE_VVI]),                                     // vs
+                     (lastUsersPlanePos.IsOnGnd() ? '0' : '1'),                             // airborne
+                     lastUsersPlanePos.heading(), lastUsersTrueAirspeed * KT_per_M_per_S,   // hdg, spd
+                     EXPORT_USER_CALL,                                                      // cs
+                     userIcao, userReg,                                                     // type, tail,
+                     lastUsersPlanePos.ts() - nanToZero(LTFlightData::fileExportTsBase));   // timestamp: if requested normalize timestamp in output
+            break;
+            
+        case EXP_FD_RTTFC:
+            snprintf(buf, sizeof(buf),
+                     "RTTFC,%u,%.6f,%.6f,%.0f,%.0f,%c,%.0f,%.0f,%s,%s,%s,,,%.0f,"
+                     "%s,%s,%s,%.0f,"
+                     "%.1f,%.1f,-1,-1,%.0f,%.0f,"                                // IAS, TAS, (Mach, track_rate), roll, mag_heading
+                     "%.2f,%.0f,%s,%s,"
+                     "-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,"                        // nav_qnh, nav_altitude_mcp, nav_altitude_fms, nav_heading, nav_modes, seen, rssi, winddir, windspd, OAT, TAT
+                     "0,,\n",                                                   // isICAOhex
+                     // equivalent to AITFC
+                     modeS_ID,                                                              // hexid
+                     lastUsersPlanePos.lat(), lastUsersPlanePos.lon(),                      // lat, lon
+                     nanToZero(dataRefs.WeatherPressureAlt_ft(lastUsersPlanePos.alt_ft())), // baro_alt
+                     XPLMGetDataf(adrXP[DR_PLANE_VVI]),                                     // baro_rate
+                     (lastUsersPlanePos.IsOnGnd() ? '1' : '0'),                             // gnd
+                     lastUsersTrack, XPLMGetDataf(adrXP[DR_PLANE_GS]) * KT_per_M_per_S,     // track, gsp
+                     EXPORT_USER_CALL,                                                      // cs_icao
+                     userIcao, userReg,                                                     // ac_type, ac_tailno
+                     lastUsersPlanePos.ts() - nanToZero(LTFlightData::fileExportTsBase),    // timestamp: if requested normalize timestamp in output
+                     // additions by RTTFC
+                     "XP",                                                      // source
+                     EXPORT_USER_CALL,                                          // cs_iata (copy of cs_icao)
+                     "lt_export",                                               // msg_type
+                     nanToZero(lastUsersPlanePos.alt_ft()),                     // alt_geom
+                     XPLMGetDataf(adrXP[DR_PLANE_KIAS]),                        // IAS
+                     lastUsersTrueAirspeed * KT_per_M_per_S,                    // TAS
+                     lastUsersPlanePos.roll(),                                  // roll
+                     XPLMGetDataf(adrXP[DR_PLANE_MAG_HEADING]),                 // mag_heading
+                     lastUsersPlanePos.heading(),                               // true_heading
+                     XPLMGetDataf(adrXP[DR_PLANE_VVI]),                         // geom_rate
+                     "none",                                                    // emergency
+                     "");                                                       // category
+            break;
+    }
+
     LTFlightData::ExportAddOutput((unsigned long)std::lround(lastUsersPlanePos.ts()), buf);
 }
 
@@ -1320,83 +1371,20 @@ void DataRefs::ClearCameraAc(void*)
 /// Compute simulated time (seconds since Unix epoch, including fractionals)
 void DataRefs::UpdateSimTime()
 {
-    // using historic data means: we take the date configured in X-Plane's date&time settings
-    if ( bUseHistoricData )
-    {
-        // cache parts of the calculation as the difficult part can only
-        // change at the full hour
-        static time_t cacheStartOfZuluDay = -1;
-        static int lastCalcZHour = -1;
-        static int lastLocalDateDays = -1;
-        
-        // current zulu time of day
-        double z  = XPLMGetDataf(adrXP[DR_ZULU_TIME_SEC]);
-        // X-Plane's local date, expressed in days since January 1st
-        int localDateDays = XPLMGetDatai(adrXP[DR_LOCAL_DATE_DAYS]);
-
-        // if the zulu hour or the date changed since last full calc then the full calc
-        // might change, so redo it once and cache the result
-        if (int(z/SEC_per_H) != lastCalcZHour ||
-            localDateDays != lastLocalDateDays)
-        {
-            // challenge: Xp doesn't provide "ZuluDateDays". The UTC day might
-            // not be the same as the local day we get with GetLocalDateDays.
-            // So the approach is as follows: In reality, the time diff between
-            // local and zulu can't be more than 12 hours.
-            // So if the diff between local and zulu time appears greater than 12 hours
-            // we have to adjust the date by one day, which can happen into the past as well as
-            // into the future:
-            // l = local time
-            // z = zulu time
-            // 0 = local midnight
-            // d = z - l
-            //
-            // 1 -----0--l---z-----  l < z,   0 <  d <= 12
-            // 2 -----0--z---l-----  z < l, -12 <= d <  0
-            // 3 --z--0---l--------  z > l,   d > 12,  z-day less    than l-day
-            // 4 --l--0---z--------  l > z,   d < -12, z-day greater than l-day
-            double l = XPLMGetDataf(adrXP[DR_LOCAL_TIME_SEC]);  // local time in seconds
-            double d  = z - l;        // time doesn't move between the two calls within the same drawing frame so the diff is actually a multiple of hours (or at least minutes), but no fractional seconds
-            
-            // we only need to adapt d if abs(d) is greater than 12 hours
-            if ( d > 12 * SEC_per_H )
-                localDateDays--;
-            else if ( d < -12 * SEC_per_H )
-                localDateDays++;
-            
-            // calculate the right zulu day
-            cacheStartOfZuluDay =
-                // cater for year-wrap-around as X-Plane doesn't configure the year
-                (( localDateDays <= iTodaysDayOfYear ) ? tStartThisYear : tStartPrevYear) +
-                // add seconds for each completed day of that year
-                localDateDays * SEC_per_D;
-            
-            // the zulu hour/date we did the calculation for
-            lastCalcZHour = int(z / SEC_per_H);
-            lastLocalDateDays = localDateDays;
-        }
-
-        // add current zulu time to start of zulu day
-        lastSimTime = cacheStartOfZuluDay + z;
-    }
-    else
-    {
-        // we use current system time (no matter what X-Plane simulates),
-        // but lagging behind by the buffering time
-        using namespace std::chrono;
-        lastSimTime =
-            // system time in seconds with fractionals
-            GetSysTime()
-            // minus the buffering time
-            - GetFdBufPeriod()
+    // we use current system time (no matter what X-Plane simulates),
+    // but lagging behind by the buffering time
+    using namespace std::chrono;
+    lastSimTime =
+        // system time in seconds with fractionals
+        GetSysTime()
+        // minus the buffering time
+        - GetFdBufPeriod()
 #ifdef DEBUG
-            // minus debugging delay
-            - fdBufDebug
+        // minus debugging delay
+        - fdBufDebug
 #endif
-            // plus the offset compared to network (this corrects for wrong system clock time as compared to reality)
-            + GetChTsOffset();
-    }
-    
+        // plus the offset compared to network (this corrects for wrong system clock time as compared to reality)
+        + GetChTsOffset();
 }
 
 // Current sim time as a human readable string, including 10th of seconds
@@ -1405,49 +1393,6 @@ std::string DataRefs::GetSimTimeString() const
     return ts2string(GetSimTime());
 }
 
-// livetraffic/sim/date and .../time
-void DataRefs::LTSetSimDateTime(void* p, int i)
-{
-    long bDateTime = (long)reinterpret_cast<long long>(p);
-    
-    // as we are setting a specific date/time we switch XP to "don't use system time"
-    dataRefs.SetUseSystemTime(false);
-    
-    // setting date?
-    if ( bDateTime == 1) {
-        // range check: if month/day only add _any_ year...doesn't matter (much) for day-of-year calc
-        if ( 0101 <= i && i <= 1231 )
-            i += 20180000;
-        
-        // range check: 19000101 <= i <= 29991231
-        if ( i < 19000101 || i > 29991231 ) return;
-        
-        // calculate days since beginning of year: mktime fills that field
-        std::tm tm;
-        memset (&tm, 0, sizeof(tm));
-        tm.tm_year = i / 10000 - 1900;
-        tm.tm_mon  = (i % 10000) / 100 - 1;
-        tm.tm_mday = i % 100;
-        tm.tm_hour = 12;            // pretty safe re local time zone...not absolutely, though
-        mktime(&tm);
-        
-        // set the data ref for local_date_days to adjust X-Planes date immediately
-        dataRefs.SetLocalDateDays(tm.tm_yday);
-    } else {
-        // setting time, range check: 000000 <= i <= 235959
-        if ( i < 0 || i > 235959 ) return;
-        
-        // seconds since midnight
-        int sec = i / 10000 * SEC_per_H +           // hour
-                  (i % 10000) / 100 * SEC_per_M +   // minute
-                  i % 100;
-        dataRefs.SetZuluTimeSec((float)sec);
-    }
-    
-    // finally, if we are not already using historic data switch to use it
-    //          and force reloading all data
-    dataRefs.SetUseHistData(true, true);
-}
 
 int DataRefs::LTGetSimDateTime(void* p)
 {
@@ -1526,27 +1471,9 @@ void DataRefs::SetMsgAreaLevel ( int i )
     else                       iMsgAreaLevel = logLevelTy(i);
 }
 
-// switch usage of historic data
-void DataRefs::LTSetUseHistData(void*, int useHistData)
-{
-    dataRefs.SetUseHistData(useHistData != 0, false);
-}
-
 // switch usage of historic data, return success
-bool DataRefs::SetUseHistData (bool bUseHistData, bool bForceReload)
+void DataRefs::ForceDataReload ()
 {
-    // short-cut if no actual change...cause changing it is expensive
-    if ( !bForceReload && dataRefs.bUseHistoricData == (int)bUseHistData )
-        return true;
-    
-    // change to historical data but running with system time?
-    if ( bUseHistData &&
-         (XPLMGetDatai(adrXP[DR_USE_SYSTEM_TIME]) != 0) )
-    {
-        SHOW_MSG(logERR, MSG_HIST_WITH_SYS_TIME);
-        return false;
-    }
-    
     // if we change this setting while running
     // we 'simulate' a re-initialization
     if (pluginState >= STATE_ENABLED) {
@@ -1557,23 +1484,11 @@ bool DataRefs::SetUseHistData (bool bUseHistData, bool bForceReload)
         // disable myself / stop all connections
         LTMainDisable();
         
-        // Now set the new setting
-        dataRefs.bUseHistoricData = bUseHistData;
-        
         // create the connections to flight data
         if ( LTMainEnable() ) {
             // display aircraft (if that was the case previously)
             dataRefs.SetAircraftDisplayed(bShowAc);
-            return true;
         }
-        else {
-            return false;
-        }
-    }
-    else {
-        // not yet running, i.e. init phase: just set the value
-        dataRefs.bUseHistoricData = bUseHistData;
-        return true;
     }
 }
 
@@ -1619,7 +1534,8 @@ bool DataRefs::SetCfgValue (void* p, int val)
         rtListenPort    < 1024              || rtListenPort     > 65535 ||
         rtTrafficPort   < 1024              || rtTrafficPort    > 65535 ||
         rtWeatherPort   < 1024              || rtWeatherPort    > 65535 ||
-        ffSendPort      < 1024              || ffSendPort       > 65535
+        ffSendPort      < 1024              || ffSendPort       > 65535 ||
+        fscEnv          < 0                 || fscEnv           > 1
         )
     {
         // undo change
@@ -1867,7 +1783,7 @@ bool DataRefs::LoadConfigFile()
     assert (aFlarmToIcaoAcTy.size() == size_t(FAT_UAV)+1);
 
     // which conversion to do with the (older) version of the config file?
-    enum cfgFileConvE { CFG_NO_CONV=0, CFG_KM_2_NM, CFG_DEL_IMGUI_CFG } conv = CFG_NO_CONV;
+    enum cfgFileConvE { CFG_NO_CONV=0, CFG_V3 } conv = CFG_NO_CONV;
     
     // open a config file
     std::string sFileName (LTCalcFullPath(PATH_CONFIG_FILE));
@@ -1898,16 +1814,17 @@ bool DataRefs::LoadConfigFile()
     }
     
     // 2. is version / test for older version for which a conversion is to be done?
-    if (ln[1] == LT_CFG_VERSION)            conv = CFG_NO_CONV;
-    else if (ln[1] == LT_CFG_VER_NM_CONV)   conv = CFG_KM_2_NM;
-    else if (ln[1] == LT_CFG_VER_DEL_IMGUI) conv = CFG_DEL_IMGUI_CFG;
+    if (ln[1] == LT_VERSION)                conv = CFG_NO_CONV;
     else {
-        SHOW_MSG(logERR, ERR_CFG_FILE_VER, sFileName.c_str(), lnBuf.c_str());
-        return false;
+        // Version update!
+        SHOW_MSG(logMSG, MSG_LT_UPDATED, LT_VERSION);
+        // Any pre-v3 version?
+        if (ln[1][0] < '3')
+            conv = CFG_V3;
     }
     
     // *** Delete LiveTraffic_imgui.prf? ***
-    if (conv == CFG_DEL_IMGUI_CFG)
+    if (conv == CFG_V3)                 // added column to the aircraft list
         std::remove(IMGUI_INI_PATH);
     
     // *** DataRefs ***
@@ -1949,15 +1866,13 @@ bool DataRefs::LoadConfigFile()
                 // conversion of older config file formats
                 switch (conv) {
                     case CFG_NO_CONV: break;
-                    case CFG_KM_2_NM:           // distance values converted from km to nm
-                        if (*i == DATA_REFS_LT[DR_CFG_FD_STD_DISTANCE])
-                        {
-                            // distances are int values, so we have to convert, then round to int:
-                            sVal = std::to_string(std::lround(std::stoi(sVal) *
-                                                  double(M_per_KM) / double(M_per_NM)));
+                    case CFG_V3:
+                        if (*i == DATA_REFS_LT[DR_CFG_RT_TRAFFIC_PORT]) {
+                            // With v3 preferred port changes from 49003 to 49005
+                            if (sVal == "49003")
+                                sVal = "49005";
                         }
                         break;
-                    case CFG_DEL_IMGUI_CFG: break;
                 }
                 
                 // *** valid config entry, now process it ***
@@ -1974,11 +1889,20 @@ bool DataRefs::LoadConfigFile()
             
             // *** Strings ***
             else if (sDataRef == CFG_DEFAULT_AC_TYPE)
-                dataRefs.SetDefaultAcIcaoType(sVal);
+                SetDefaultAcIcaoType(sVal);
             else if (sDataRef == CFG_DEFAULT_CAR_TYPE)
-                dataRefs.SetDefaultCarIcaoType(sVal);
+                SetDefaultCarIcaoType(sVal);
+            else if (sDataRef == CFG_OPENSKY_USER)
+                SetOpenSkyUser(sVal);
+            else if (sDataRef == CFG_OPENSKY_PWD)
+                SetOpenSkyPwd(Cleartext(sVal));
             else if (sDataRef == CFG_ADSBEX_API_KEY)
-                dataRefs.SetADSBExAPIKey(sVal);
+                // With v3 we start obfuscating the API key
+                SetADSBExAPIKey(conv == CFG_V3 ? sVal : Cleartext(sVal));
+            else if (sDataRef == CFG_FSC_USER)
+                SetFSCharterUser(sVal);
+            else if (sDataRef == CFG_FSC_PWD)
+                SetFSCharterPwd(Cleartext(sVal));
             else
             {
                 // unknown config entry, ignore
@@ -2095,9 +2019,8 @@ bool DataRefs::SaveConfigFile()
     }
     
     // *** VERSION ***
-    // save application and version first...maybe we need to know it in
-    // future versions for conversion efforts - who knows?
-    fOut << LIVE_TRAFFIC << ' ' << LT_CFG_VERSION << '\n';
+    // save application and version first
+    fOut << LIVE_TRAFFIC << ' ' << LT_VERSION << '\n';
     
     // *** DataRefs ***
     // loop over our LiveTraffic values and store those meant to be stored
@@ -2111,11 +2034,19 @@ bool DataRefs::SaveConfigFile()
     fOut << CFG_WNDPOS_ILW << ' ' << ILWrect << '\n';
     
     // *** Strings ***
-    fOut << CFG_DEFAULT_AC_TYPE << ' ' << dataRefs.GetDefaultAcIcaoType() << '\n';
-    fOut << CFG_DEFAULT_CAR_TYPE << ' ' << dataRefs.GetDefaultCarIcaoType() << '\n';
-    if (!dataRefs.GetADSBExAPIKey().empty())
-        fOut << CFG_ADSBEX_API_KEY << ' ' << dataRefs.GetADSBExAPIKey() << '\n';
-    
+    fOut << CFG_DEFAULT_AC_TYPE << ' ' << GetDefaultAcIcaoType() << '\n';
+    fOut << CFG_DEFAULT_CAR_TYPE << ' ' << GetDefaultCarIcaoType() << '\n';
+    if (!sOpenSkyUser.empty())
+        fOut << CFG_OPENSKY_USER << ' ' << sOpenSkyUser << '\n';
+    if (!sOpenSkyPwd.empty())
+        fOut << CFG_OPENSKY_PWD << ' ' << Obfuscate(sOpenSkyPwd) << '\n';
+    if (!GetADSBExAPIKey().empty())
+        fOut << CFG_ADSBEX_API_KEY << ' ' << Obfuscate(GetADSBExAPIKey()) << '\n';
+    if (!sFSCUser.empty())
+        fOut << CFG_FSC_USER << ' ' << sFSCUser << '\n';
+    if (!sFSCPwd.empty())
+        fOut << CFG_FSC_PWD << ' ' << Obfuscate(sFSCPwd) << '\n';
+
     // *** [FlarmAcTypes] ***
     fOut << '\n' << CFG_FLARM_ACTY_SECTION << '\n';
     for (size_t i = 0; i < dataRefs.aFlarmToIcaoAcTy.size(); i++) {
@@ -2280,6 +2211,7 @@ void DataRefs::UpdateCachedValues ()
     std::lock_guard<std::recursive_mutex> lock(mutexDrUpdate);
 
     lastNetwTime = XPLMGetDataf(adrXP[DR_MISC_NETW_TIME]);
+    lastReplay = XPLMGetDatai(adrXP[DR_REPLAY_MODE]);
     lastVREnabled =                         // is VR enabled?
     #ifdef DEBUG
         bSimVREntered ? true :              // simulate some aspects of VR
@@ -2290,9 +2222,17 @@ void DataRefs::UpdateCachedValues ()
     UpdateSimTime();
     UpdateViewPos();
     UpdateUsersPlanePos();
+    UpdateSimWind();
     ExportUserAcData();
 }
 
+
+// Local (in sim!) wind at user's plane
+void DataRefs::UpdateSimWind ()
+{
+    lastWind.angle = (double)XPLMGetDataf(adrXP[DR_WIND_DIR]);
+    lastWind.speed = (double)XPLMGetDataf(adrXP[DR_WIND_SPEED]);
+}
 
 //
 // MARK: Processed values (static functions)

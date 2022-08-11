@@ -62,6 +62,15 @@ txtFixLivery    (dataRefs.cslFixLivery)
     // Fill Flarm aircraft types with current values
     for (size_t i = 0; i < aFlarmAcTys.size(); i++)
         aFlarmAcTys[i] = str_concat(dataRefs.aFlarmToIcaoAcTy[i], " ");
+    
+    // Fetch OpenSky credentials
+    dataRefs.GetOpenSkyCredentials(sOpenSkyUser, sOpenSkyPwd);
+    
+    // Fetch RealTraffic port number
+    sRTPort = std::to_string(DataRefs::GetCfgInt(DR_CFG_RT_TRAFFIC_PORT));
+    
+    // Fetch FSC credentials
+    dataRefs.GetFSCharterCredentials(sFSCUser, sFSCPwd);
 
     // Set up window basics
     SetWindowTitle(SUI_WND_TITLE);
@@ -189,9 +198,11 @@ void LTSettingsUI::buildInterface()
                 ImGui::FilteredCfgCheckbox("No TCAS/AI for ground a/c", sFilter, DR_CFG_AI_NOT_ON_GND,  "Aircraft on the ground will not be reported to TCAS or AI/multiplayer interfaces");
                 ImGui::FilteredCfgCheckbox("Hide a/c while taxiing", sFilter, DR_CFG_HIDE_TAXIING,      "Hide aircraft in phase 'Taxi'");
                 ImGui::FilteredCfgCheckbox("Hide a/c while parking", sFilter, DR_CFG_HIDE_PARKING,      "Hide aircraft parking at a gate or ramp position");
+                ImGui::FilteredCfgCheckbox("Hide all a/c in Reply", sFilter, DR_CFG_HIDE_IN_REPLAY,     "Hide all aircraft while in Replay mode");
                 ImGui::FilteredCfgNumber("No aircraft below", sFilter, DR_CFG_HIDE_BELOW_AGL, 0, 10000, 100, "%d ft AGL");
                 ImGui::FilteredCfgNumber("Hide ground a/c closer than", sFilter, DR_CFG_HIDE_NEARBY_GND, 0, 500, 10, "%d m");
                 ImGui::FilteredCfgNumber("Hide airborne a/c closer than", sFilter, DR_CFG_HIDE_NEARBY_AIR, 0, 5000, 100, "%d m");
+                ImGui::FilteredCfgCheckbox("Hide static objects", sFilter, DR_CFG_HIDE_STATIC_TWR,      "Do not display static objects like towers");
                 ImGui::FilteredCfgCheckbox("Use 3rd party camera", sFilter, DR_CFG_EXTERNAL_CAMERA, "Don't activate LiveTraffic's camera view when clicking the camera button\nbut expect a 3rd party camera plugin to spring on instead");
                 if (ImGui::FilteredLabel("XPMP2 Remote Client support", sFilter)) {
                     const float cbWidth = ImGui::CalcTextSize("Auto Detect (default)_____").x;
@@ -235,8 +246,81 @@ void LTSettingsUI::buildInterface()
                                            HELP_SET_CH_OPENSKY, "Open Help on OpenSky in Browser",
                                            sFilter, nOpCl))
             {
-                ImGui::FilteredCfgCheckbox("OpenSky Network Master Data", sFilter, DR_CHANNEL_OPEN_SKY_AC_MASTERDATA, "Query OpenSky for aicraft master data like type, registration...");
+                LTChannel* pOpenSkyCh = LTFlightDataGetCh(DR_CHANNEL_OPEN_SKY_ONLINE);
+                const bool bOpenSkyOn = dataRefs.IsChannelEnabled(DR_CHANNEL_OPEN_SKY_ONLINE);
 
+                ImGui::FilteredCfgCheckbox("OpenSky Network Master Data", sFilter, DR_CHANNEL_OPEN_SKY_AC_MASTERDATA, "Query OpenSky for aicraft master data like type, registration...");
+                
+                // Hint that user/password increases number of allowed requests
+                if (!*sFilter && (sOpenSkyUser.empty() || sOpenSkyPwd.empty())) {
+                    ImGui::ButtonURL(ICON_FA_EXTERNAL_LINK_SQUARE_ALT " Registration",
+                                     "https://opensky-network.org/login?view=registration",
+                                     "Opens OpenSky Network's user registration page");
+                    ImGui::TableNextCell();
+                    ImGui::TextUnformatted("Using a registered user allows for more requests to OpenSky per day ");
+                    ImGui::TableNextCell();
+                }
+
+                // User
+                if (ImGui::FilteredLabel("Username", sFilter)) {
+                    ImGui::Indent(ImGui::GetWidthIconBtn(true));
+                    ImGui::InputTextWithHint("##OpenSkyUser",
+                                             "OpenSky Network username",
+                                             &sOpenSkyUser,
+                                             // prohibit changes to the user while channel on
+                                             (bOpenSkyOn ? ImGuiInputTextFlags_ReadOnly : ImGuiInputTextFlags_None));
+                    ImGui::Unindent(ImGui::GetWidthIconBtn(true));
+
+                    ImGui::TableNextCell();
+                }
+                
+                // Password
+                if (ImGui::FilteredLabel("Password", sFilter)) {
+                    // "Eye" button changes password flag
+                    ImGui::Selectable(ICON_FA_EYE "##OpenSkyPwdVisible", &bOpenSkyPwdClearText,
+                                      ImGuiSelectableFlags_None, ImVec2(ImGui::GetWidthIconBtn(),0));
+                    if (ImGui::IsItemHovered())
+                        ImGui::SetTooltip("%s", "Show/Hide password");
+                    ImGui::SameLine();  // make text entry the size of the remaining space in cell, but not larger
+                    ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
+                    ImGui::InputTextWithHint("##OpenSkyPwd",
+                                             "Enter or paste OpenSky Network password",
+                                             &sOpenSkyPwd,
+                                             // clear text or password mode?
+                                             (bOpenSkyPwdClearText ? ImGuiInputTextFlags_None     : ImGuiInputTextFlags_Password) |
+                                             // prohibit changes to the pwd while channel on
+                                             (bOpenSkyOn ? ImGuiInputTextFlags_ReadOnly : ImGuiInputTextFlags_None));
+                    
+                    ImGui::TableNextCell();
+                }
+                
+                // Save button or hint how to change
+                if (!*sFilter) {
+                    ImGui::TableNextCell();
+                    if (bOpenSkyOn) {
+                        ImGui::TextUnformatted("Disable the channel first if you want to change user/password.");
+                    } else {
+                        if (ImGui::ButtonTooltip(ICON_FA_SAVE " Save and Try", "Saves the credentials and activates the channel")) {
+                            dataRefs.SetOpenSkyUser(sOpenSkyUser);
+                            dataRefs.SetOpenSkyPwd(sOpenSkyPwd);
+                            if (pOpenSkyCh) pOpenSkyCh->SetValid(true,false);
+                            dataRefs.SetChannelEnabled(DR_CHANNEL_OPEN_SKY_ONLINE, true);
+                            bOpenSkyPwdClearText = false;           // and hide the pwd now
+                        }
+                    }
+                    ImGui::TableNextCell();
+                }
+
+                // OpenSky's connection status details
+                if (ImGui::FilteredLabel("Connection Status", sFilter)) {
+                    if (pOpenSkyCh) {
+                        ImGui::TextUnformatted(pOpenSkyCh->GetStatusText().c_str());
+                    } else {
+                        ImGui::TextUnformatted("Off");
+                    }
+                    ImGui::TableNextCell();
+                }
+                
                 if (!*sFilter) ImGui::TreePop();
             }
             
@@ -392,14 +476,34 @@ void LTSettingsUI::buildInterface()
                                            HELP_SET_CH_REALTRAFFIC, "Open Help on RealTraffic in Browser",
                                            sFilter, nOpCl))
             {
-                // RealTraffic's connection status details
-                if (dataRefs.IsChannelEnabled(DR_CHANNEL_REAL_TRAFFIC_ONLINE) ||
-                    (dataRefs.pRTConn && dataRefs.pRTConn->IsConnecting()))
-                {
-                    if (ImGui::FilteredLabel("Connection Status", sFilter)) {
-                        ImGui::TextRealTrafficStatus();
-                        ImGui::TableNextCell();
+                // RealTraffic traffic port number
+                if (ImGui::FilteredLabel("Traffic Port", sFilter)) {
+                    ImGui::SetNextItemWidth(fSmallWidth);
+                    ImGui::InputText("", &sRTPort, ImGuiInputTextFlags_CharsDecimal);
+                    // if changed then set (then re-read) the value
+                    if (ImGui::IsItemDeactivatedAfterEdit()) {
+                        dataRefs.SetRTTrafficPort(std::stoi(sRTPort));
+                        sRTPort = std::to_string(DataRefs::GetCfgInt(DR_CFG_RT_TRAFFIC_PORT));
                     }
+                    else if (ImGui::IsItemActive()) {
+                        ImGui::SameLine();
+                        ImGui::TextUnformatted("[Enter] to save. Default: 49005, alternate: 49003");
+                    }
+                    ImGui::TableNextCell();
+                }
+                
+                // RealTraffic's connection status details
+                if (ImGui::FilteredLabel("Connection Status", sFilter)) {
+                    const LTChannel* pRTCh = LTFlightDataGetCh(DR_CHANNEL_REAL_TRAFFIC_ONLINE);
+                    if (pRTCh) {
+                        ImGui::TextUnformatted(pRTCh->GetStatusText().c_str());
+                        const std::string extStatus = pRTCh->GetStatusTextExt();
+                        if (!extStatus.empty())
+                            ImGui::TextUnformatted(extStatus.c_str());
+                    } else {
+                        ImGui::TextUnformatted("Off");
+                    }
+                    ImGui::TableNextCell();
                 }
                 
                 if (!*sFilter) ImGui::TreePop();
@@ -409,6 +513,83 @@ void LTSettingsUI::buildInterface()
             // we also make sure that OpenSky Master data is enabled
             if (!bWasRTEnabled && dataRefs.IsChannelEnabled(DR_CHANNEL_REAL_TRAFFIC_ONLINE))
                 dataRefs.SetChannelEnabled(DR_CHANNEL_OPEN_SKY_AC_MASTERDATA, true);
+            
+            // --- FSCharter ---
+            if (ImGui::TreeNodeCbxLinkHelp(FSC_NAME, nCol,
+                                           DR_CHANNEL_FSCHARTER,
+                                           "Enable tracking " FSC_NAME " online flights",
+                                           ICON_FA_EXTERNAL_LINK_SQUARE_ALT " " FSC_CHECK_NAME,
+                                           FSC_CHECK_URL,
+                                           FSC_CHECK_POPUP,
+                                           HELP_SET_CH_FSCHARTER, "Open Help on " FSC_NAME " in Browser",
+                                           sFilter, nOpCl))
+            {
+                LTChannel* pFSCCh = LTFlightDataGetCh(DR_CHANNEL_FSCHARTER);
+                const bool bFSCon = dataRefs.IsChannelEnabled(DR_CHANNEL_FSCHARTER);
+                
+                // User
+                if (ImGui::FilteredLabel("Log In", sFilter)) {
+                    ImGui::Indent(ImGui::GetWidthIconBtn(true));
+                    ImGui::InputTextWithHint("##FSCUser",
+                                             "Email Address",
+                                             &sFSCUser,
+                                             // prohibit changes to the user while channel on
+                                             (bFSCon ? ImGuiInputTextFlags_ReadOnly : ImGuiInputTextFlags_None));
+                    ImGui::Unindent(ImGui::GetWidthIconBtn(true));
+
+                    ImGui::TableNextCell();
+                }
+                
+                // Password
+                if (ImGui::FilteredLabel("Password", sFilter)) {
+                    // "Eye" button changes password flag
+                    ImGui::Selectable(ICON_FA_EYE "##FSCPwdVisible", &bFSCPwdClearText,
+                                      ImGuiSelectableFlags_None, ImVec2(ImGui::GetWidthIconBtn(),0));
+                    if (ImGui::IsItemHovered())
+                        ImGui::SetTooltip("%s", "Show/Hide password");
+                    ImGui::SameLine();  // make text entry the size of the remaining space in cell, but not larger
+                    ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
+                    ImGui::InputTextWithHint("##FSCPwd",
+                                             "Enter or paste FSC password",
+                                             &sFSCPwd,
+                                             // clear text or password mode?
+                                             (bFSCPwdClearText ? ImGuiInputTextFlags_None     : ImGuiInputTextFlags_Password) |
+                                             // prohibit changes to the pwd while channel on
+                                             (bFSCon ? ImGuiInputTextFlags_ReadOnly : ImGuiInputTextFlags_None));
+                    
+                    ImGui::TableNextCell();
+                }
+                
+                // Save button or hint how to change
+                if (!*sFilter) {
+                    ImGui::TableNextCell();
+                    if (bFSCon) {
+                        ImGui::TextUnformatted("Disable the channel first if you want to change user/password.");
+                    } else {
+                        if (ImGui::ButtonTooltip(ICON_FA_SAVE " Save and Try", "Saves the credentials and activates the channel")) {
+                            dataRefs.SetFSCharterUser(sFSCUser);
+                            dataRefs.SetFSCharterPwd(sFSCPwd);
+                            if (pFSCCh) pFSCCh->SetValid(true,false);
+                            dataRefs.SetChannelEnabled(DR_CHANNEL_FSCHARTER, true);
+                            bFSCPwdClearText = false;           // and hide the pwd now
+                        }
+                    }
+                    ImGui::TableNextCell();
+                }
+
+                // FSCharter's connection status details
+                if (ImGui::FilteredLabel("Connection Status", sFilter)) {
+                    if (pFSCCh) {
+                        ImGui::TextUnformatted(pFSCCh->GetStatusText().c_str());
+                    } else {
+                        ImGui::TextUnformatted("Off");
+                    }
+                    ImGui::TableNextCell();
+                }
+
+                if (!*sFilter) ImGui::TreePop();
+            }
+
             
             if (!*sFilter) { ImGui::TreePop(); ImGui::Spacing(); }
         } // --- Input Channels ---
@@ -603,6 +784,13 @@ void LTSettingsUI::buildInterface()
                                            "Exports user's aircraft positions as tracking data to 'LTExportFD.csv'\nfor analysis or use by feeding scripts.");
                 ImGui::FilteredCfgCheckbox("Export: Normalize Time", sFilter, DR_DBG_EXPORT_NORMALIZE_TS,
                                            "In each export file, have all timestamps start at zero.\nMakes it easier to combine data from different files later.");
+                if (ImGui::FilteredLabel("Export file format", sFilter)) {
+                    if (ImGui::RadioButton("AITFC", dataRefs.GetDebugExportFormat() == EXP_FD_AITFC))
+                        dataRefs.SetDebugExportFormat(EXP_FD_AITFC);
+                    ImGui::SameLine();
+                    if (ImGui::RadioButton("RTTFC", dataRefs.GetDebugExportFormat() == EXP_FD_RTTFC))
+                        dataRefs.SetDebugExportFormat(EXP_FD_RTTFC);
+                }
                 if (!*sFilter) ImGui::TreePop();
             }
 
@@ -968,7 +1156,7 @@ void LTSettingsUI::buildInterface()
         } // --- Debug ---
         
         // Version information
-        if constexpr (VERSION_BETA) {
+        if constexpr (LIVETRAFFIC_VERSION_BETA) {
             if (ImGui::FilteredLabel("BETA Version", sFilter)) {
                 ImGui::Text("%s, limited to %s",
                             LT_VERSION_FULL, LT_BETA_VER_LIMIT_TXT);

@@ -120,7 +120,7 @@ void ACIWnd::SetAuto (bool _b)
 std::string ACIWnd::GetWndTitle () const
 {
     return
-    (acKey.empty() ? std::string(ACI_WND_TITLE) : std::string(acKey)) +
+    (acKey.empty() ? std::string(ACI_WND_TITLE) : stat.acId(std::string(acKey))) +
     (bAuto ? " (AUTO)" : "");
 }
 
@@ -381,9 +381,11 @@ void ACIWnd::buildInterface()
                 ImGui::Text("%+.f ft/min", pAc->GetVSI_ft());
                 ImGui::EndTable();
             }
-            buildRowLabel("Heading | Pitch | Roll");
-            if (pAc && ImGui::BeginTable("##HdgPitchRll", 3)) {
+            buildRowLabel("Track/Head. | Pitch/Roll");
+            if (pAc && ImGui::BeginTable("##TrckPitchRll", 4)) {
                 ImGui::TableNextRow();
+                ImGui::Text("%03.0f°", pAc->GetTrack());
+                ImGui::TableNextCell();
                 ImGui::Text("%03.0f°", pAc->GetHeading());
                 ImGui::TableNextCell();
                 ImGui::Text("%.1f°", pAc->GetPitch());
@@ -421,9 +423,21 @@ void ACIWnd::buildInterface()
 
             // last received tracking data
             const double lstDat = pFD ? (pFD->GetYoungestTS() - ts) : -99999.9;
-            if (-10000 <= lstDat && lstDat <= 10000)
-                buildRow("Tracking Data", pFD, "%+.1fs, %s",
-                         lstDat, pChannel ? pChannel->ChName() : "?");
+            if (-10000 <= lstDat && lstDat <= 10000) {
+                buildRowLabel("Tracking Data");
+                if (!stat.slug.empty()) {
+                    if (ImGui::SelectableTooltip(ICON_FA_EXTERNAL_LINK_SQUARE_ALT "##FlightURL",
+                                                 false,                         // selected?
+                                                 true,                          // enabled?
+                                                 "Open flight in browser",
+                                                 ImGuiSelectableFlags_None,
+                                                 ImVec2 (ImGui::GetWidthIconBtn(), 0.0f)))
+                        LTOpenURL(stat.slug);
+                    ImGui::SameLine();
+                }
+                ImGui::Text("%+.1fs, %s", lstDat,
+                            pChannel ? pChannel->ChName() : "?");
+            }
             else
                 buildRow("Tracking Data", pChannel ? pChannel->ChName() : "?", pFD);
 

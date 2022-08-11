@@ -246,7 +246,7 @@ bool FileRecLookup (std::ifstream& f, size_t& n,
 // MARK: URL/Help support
 //
 
-void LTOpenURL  (const std::string _url)
+void LTOpenURL  (const std::string& _url)
 {
     // Transiently, we allow to add the current camera position into the URL
     std::string url(_url);
@@ -276,7 +276,7 @@ void LTOpenURL  (const std::string _url)
 }
 
 // just prepend the given path with the base URL an open it
-void LTOpenHelp (const std::string path)
+void LTOpenHelp (const std::string& path)
 {
     LTOpenURL(std::string(HELP_URL)+path);
 }
@@ -304,6 +304,27 @@ std::string str_toupper_c(const std::string& s)
 bool str_isalnum(const std::string& s)
 {
     return std::all_of(s.cbegin(), s.cend(), [](unsigned char c){return isalnum(c);});
+}
+
+// Replace all occurences of one string with another
+void str_replaceAll(std::string& str, const std::string& from, const std::string& to)
+{
+    if (from.empty() || str.empty())
+        return;
+    size_t start_pos = 0;
+    while ((start_pos = str.find(from, start_pos)) != std::string::npos) {
+        str.replace(start_pos, from.length(), to);
+        start_pos += to.length(); // Continue search only _after_ the replacement position
+    }
+}
+
+// Cut off everything after `from` from `s`, `from` including
+std::string& cut_off(std::string& s, const std::string& from)
+{
+    const size_t pos = s.find(from);
+    if (pos != std::string::npos)
+        s.erase(pos);
+    return s;
 }
 
 // last word of a string
@@ -362,6 +383,73 @@ std::string str_first_non_empty (const std::initializer_list<const std::string>&
     return "";
 }
 
+// Replaces personal information in the string, like email address
+std::string& str_replPers (std::string& s)
+{
+    // replace email addresses
+    static std::regex reEMail("\\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}\\b", std::regex::icase);
+    s = std::regex_replace(s, reEMail, "[email@ano.nym]");
+    
+    // Replace user's directory name in Linux
+    static std::regex reHome("\\/home\\/[-_\\.a-z]+\\/", std::regex::icase);
+    s = std::regex_replace(s, reHome, "/home/[user]/");
+
+    // Replace user's directory name in MacOS or Windows
+    static std::regex reUsers("[\\/\\\\]Users[\\/\\\\][-_\\.a-z]+[\\/\\\\]", std::regex::icase);
+    s = std::regex_replace(s, reUsers, "/Users/[user]/");
+
+    return s;
+}
+
+/// Base64 encoding
+std::string EncodeBase64 (const std::string& _clear)
+{
+    // create a buffer for the result and do the encoding
+    char* buf = new char [(unsigned)Base64encode_len((int)_clear.length())];
+    Base64encode(buf, _clear.c_str(), (int)_clear.length());
+    std::string ret (buf);
+    delete [] buf;
+    return ret;
+}
+
+/// Base64 decoding
+std::string DecodeBase64 (const std::string& _encoded)
+{
+    // create a buffer for the result and do the decoding
+    char* buf = new char [(unsigned)Base64decode_len(_encoded.c_str())];
+    const int len = Base64decode(buf, _encoded.c_str());
+    std::string ret (buf, (size_t)len);
+    delete [] buf;
+    return ret;
+}
+
+/// XOR a string with another one
+std::string str_xor (const std::string& s, const char* t)
+{
+    const char* pc = t;
+    std::string r ( s.size(), '\0');
+    for (size_t i = 0; i < s.size(); ++i, ++pc) {
+        if (!(*pc)) pc = t;                     // restart at end of string
+        r[i] = s[i] ^ *pc;
+    }
+    return r;
+}
+
+/// Obfuscate a secret string for storing in the settings file
+std::string Obfuscate (const std::string& _clear)
+{
+    // We XOR with a constant text, then base64-convert
+    return EncodeBase64(str_xor(_clear, PLUGIN_SIGNATURE));
+}
+
+/// Undo obfuscation
+std::string Cleartext (const std::string& _obfuscated)
+{
+    // We base64-decode, then XOR with a constant text
+    return str_xor(DecodeBase64(_obfuscated), PLUGIN_SIGNATURE);
+}
+
+
 //
 // MARK: Time Functions
 //
@@ -408,6 +496,28 @@ time_t mktime_utc (int h, int min, int s)
     return ret;
 }
 
+// Convert time string "YYYY-MM-DD HH:MM:SS" to epoch value
+time_t mktime_string (const std::string& s)
+{
+    static std::regex reTm ("(\\d{4})-(\\d{2})-(\\d{2}) (\\d{1,2}):(\\d{2}):(\\d{2})");
+    std::smatch mTm;
+    std::regex_search(s, mTm, reTm);
+    if (mTm.size() != 7)
+        return 0;
+        
+    struct tm gbuf;
+    memset(&gbuf, 0, sizeof(gbuf));
+    gbuf.tm_year = std::stoi(mTm.str(1)) - 1900;
+    gbuf.tm_mon  = std::stoi(mTm.str(2)) -    1;
+    gbuf.tm_mday = std::stoi(mTm.str(3));
+    gbuf.tm_hour = std::stoi(mTm.str(4));
+    gbuf.tm_min  = std::stoi(mTm.str(5));
+    gbuf.tm_sec  = std::stoi(mTm.str(6));
+    gbuf.tm_isdst = -1;         // re-lookup timezone/DST information!
+    return mktime_utc(gbuf);
+}
+
+
 // format timestamp
 std::string ts2string (time_t t)
 {
@@ -417,7 +527,7 @@ std::string ts2string (time_t t)
     gmtime_s(&tm, &t);
     strftime(szBuf,
              sizeof(szBuf) - 1,
-             "%F %T",
+             "%Y-%m-%d %H:%M:%S",       // %F %T
              &tm);
     return std::string(szBuf);
 }
@@ -488,6 +598,57 @@ std::string GetNearestAirportId (const positionTy& _pos,
     
     // return the id
     return airportId;
+}
+
+// Convert ADS-B Emitter Category to text
+const char* GetADSBEmitterCat (const std::string& cat)
+{
+    // We expect 2 characters
+    if (cat.length() != 2) return cat.c_str();
+    
+    switch (cat[0]) {
+        case 'A':
+            switch (cat[1]) {
+                case '0': return "Category A - No Info";
+                case '1': return "Light (<15500 lbs)";
+                case '2': return "Small (15500-75000 lbs)";
+                case '3': return "Large (75000-300000 lbs)";
+                case '4': return "High-Vortex Large";
+                case '5': return "Heavy (>300000 lbs)";
+                case '6': return "High Performance";
+                case '7': return "Rotorcraft";
+            }
+            break;
+        case 'B':
+            switch (cat[1]) {
+                case '0': return "Category B - No Info";
+                case '1': return "Glider / Sailplane";
+                case '2': return "Lighter-than-Air";
+                case '3': return "Parachutist / Skydiver";
+                case '4': return "Ultralight / hang-glider / paraglider";
+                case '6': return "Unmanned Aerial Vehicle";
+                case '7': return "Space / Trans-atmospheric vehicle";
+            }
+            break;
+        case 'C':
+            switch (cat[1]) {
+                case '0': return "Category C - No Info";
+                case '1': return "Emergency Vehicle";
+                case '2': return "Service Vehicle";
+                case '3': return "Point Obstacle";
+                case '4': return "Cluster Obstacle";
+                case '5': return "Line Obstacle";
+            }
+            break;
+        case 'D':
+            switch (cat[1]) {
+                case '0': return "Category D - No Info";
+            }
+            break;
+    }
+    
+    // Shouldn't be here...
+    return cat.c_str();
 }
 
 // comparing 2 doubles for near-equality
@@ -564,7 +725,7 @@ float LoopCBAircraftMaintenance (float inElapsedSinceLastCall, float, int, void*
             if (dataRefs.IsReInitAll()) {
                 // force an initialization
                 SHOW_MSG(logWARN, MSG_REINIT)
-                dataRefs.SetUseHistData(dataRefs.GetUseHistData(), true);
+                dataRefs.ForceDataReload();
                 // and reset the re-init flag
                 dataRefs.SetReInitAll(false);
                 // Log a new timestamp
@@ -611,14 +772,14 @@ int   MPIntPrefsFunc   (const char*, const char* key, int   iDefault)
 {
     // debug XPMP's CSL model matching if requested
     if (!strcmp(key, XPMP_CFG_ITM_MODELMATCHING)) {
-        if constexpr (VERSION_BETA)         // force logging of model-matching in BETA versions
+        if constexpr (LIVETRAFFIC_VERSION_BETA)         // force logging of model-matching in BETA versions
             return true;
         else
             return dataRefs.GetDebugModelMatching();
     }
     // logging level to match ours
     if (!strcmp(key, XPMP_CFG_ITM_LOGLEVEL)) {
-        if constexpr (VERSION_BETA)         // force DEBUG-level logging in BETA versions
+        if constexpr (LIVETRAFFIC_VERSION_BETA)         // force DEBUG-level logging in BETA versions
             return logDEBUG;
         else
             return dataRefs.GetLogLevel();
